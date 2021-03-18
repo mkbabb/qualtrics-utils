@@ -3,8 +3,7 @@ import json
 import os
 from typing import *
 
-from ..utils import (file_components, get_multiple, normalize_whitespace,
-                     quote_value)
+from ..utils import file_components, normalize_whitespace, quote_value
 
 
 def sql_qualtrics_map_func(mapping: dict) -> dict:

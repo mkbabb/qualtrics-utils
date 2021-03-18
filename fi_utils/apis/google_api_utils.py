@@ -14,7 +14,7 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient import discovery
-from utils.utils import file_components, update_url_params, url_components
+from ..utils import file_components, update_url_params, url_components
 
 GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 
