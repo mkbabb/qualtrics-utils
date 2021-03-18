@@ -5,7 +5,7 @@ description = ""
 authors = ["Mike Babb <mike7400@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "3.9"
+python = "^3.9"
 PyYAML = "^5.3.1"
 lxml = "^4.6.2"
 google-auth-httplib2 = "^0.0.4"
