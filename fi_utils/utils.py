@@ -5,13 +5,12 @@ import os
 import re
 import subprocess
 import urllib.parse
-import requests
+import urllib.request
 from contextlib import contextmanager
 from typing import *
 
+import requests
 import sqlalchemy as sqla
-
-T = TypeVar("T")
 
 
 def init_logger(logfile_path: str, **kwargs: Any) -> None:
@@ -33,7 +32,9 @@ def init_logger(logfile_path: str, **kwargs: Any) -> None:
         handler.doRollover()
 
     logging.basicConfig(
-        filename=logfile_path, format=format, level=level,
+        filename=logfile_path,
+        format=format,
+        level=level,
     )
 
 
@@ -45,12 +46,18 @@ def create_sqla_engine_str(
     return s
 
 
-def url_get_json(url: str) -> Optional[Any]:
-    try:
-        return requests.get(url).json()
-    except Exception as e:
-        print(f"Exception found: {e}")
-        return None
+def open_mysql_conn(mysql_config: dict) -> sqla.engine.Connection:
+    engine_str = create_sqla_engine_str(
+        username=mysql_config["username"],
+        password=mysql_config["password"],
+        host=mysql_config["host"],
+        port=mysql_config["port"],
+        database=mysql_config["database"],
+    )
+    engine = sqla.create_engine(
+        engine_str, json_serializer=lambda x: json.dumps(x, default=str)
+    )
+    return engine.connect()
 
 
 @contextmanager
@@ -64,18 +71,18 @@ def create_ssh_tunnel(
     key_path: str = "~/.ssh/id_rsa",
 ):
     """Generates a "smart" ssh tunnel to a given host,
-        in our case a database host (this is arbitrary, however).
-        "smart" in the sense that when used in conjunction with the
-        "with" clause, the tunnel, and all child processes thereof,
-        will gracefully close when exited.
+    in our case a database host (this is arbitrary, however).
+    "smart" in the sense that when used in conjunction with the
+    "with" clause, the tunnel, and all child processes thereof,
+    will gracefully close when exited.
 
-        Args:
-            db_host (str): remote host granted access by the ssh host.
-            db_port (str): port of the above.
-            ssh_username (str): username of the ssh host.
-            ssh_host (str):  ssh host that is granted access to the db_host.
-            localport (str): local port that is forwarded to the db_host.
-            key_path (str): ssh key path.
+    Args:
+        db_host (str): remote host granted access by the ssh host.
+        db_port (str): port of the above.
+        ssh_username (str): username of the ssh host.
+        ssh_host (str):  ssh host that is granted access to the db_host.
+        localport (str): local port that is forwarded to the db_host.
+        key_path (str): ssh key path.
     """
     open_session = [
         "ssh",
@@ -102,20 +109,11 @@ def create_ssh_tunnel(
     subprocess.Popen(close_session)
 
 
-def file_components(filepath: str) -> Tuple[str, str, str]:
-    if os.path.isdir(filepath):
-        return ("", filepath, "")
-    else:
-        dirpath = os.path.dirname(os.path.realpath(filepath))
-        filename, ext = os.path.splitext(os.path.basename(filepath))
-        return (dirpath, filename, ext)
-
-
 def url_components(url: str) -> Dict[str, List[str]]:
     return urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
 
 
-def update_url_params(url: str, params: Dict[str, str]) -> str:
+def update_url_params(url: str, params: dict) -> str:
     url_obj = urllib.parse.urlparse(url)
     params.update(urllib.parse.parse_qsl(url_obj.query))
 
@@ -133,11 +131,12 @@ def update_url_params(url: str, params: Dict[str, str]) -> str:
     return url_obj.geturl()
 
 
-def file_to_str(filepath: str) -> str:
-    s = ""
-    with open(filepath, "r") as file:
-        s = file.read()
-    return s
+def url_get_json(url: str) -> Optional[Any]:
+    try:
+        return requests.get(url).json()
+    except Exception as e:
+        print(f"Exception found: {e}")
+        return None
 
 
 def better_dumps(
@@ -152,7 +151,9 @@ def better_dumps(
 
 
 def dict_update_nulls(
-    dict1: dict, dict2: dict, pred: Optional[Callable[[Any, Any], bool]] = None,
+    dict1: dict,
+    dict2: dict,
+    pred: Optional[Callable[[Any, Any], bool]] = None,
 ) -> dict:
     if pred is None:
         pred = lambda key, value: dict1.get(key) is None
@@ -163,15 +164,6 @@ def dict_update_nulls(
             dict1[key] = value
 
     return dict1
-
-
-def flatten_dict_by(values: List[dict], key=Callable[[dict], Optional[T]]) -> List[T]:
-    out: List[T] = []
-    for value in values:
-        t = key(value)
-        if t is not None:
-            out.append(t)
-    return out
 
 
 def list_concat(
@@ -196,16 +188,24 @@ def get_multiple(d: dict, *keys: Iterable[str]) -> dict:
     return {key: d.get(key) for key in keys}
 
 
-RE_WHITESPACE = re.compile("\s+")
-
-
 def normalize_whitespace(s: str) -> str:
+    RE_WHITESPACE = re.compile("\s+")
+
     s = re.sub(RE_WHITESPACE, " ", s)
     return s.strip()
 
 
-def quote_value(value: str, quote="`") -> str:
+def quote_value(value: str, quote: str = "`") -> str:
     if re.match(re.compile(quote + "(.*)" + quote), value) is not None:
         return value
     else:
         return f"{quote}{value}{quote}"
+
+
+def file_components(filepath: str) -> Tuple[str, str, str]:
+    if os.path.isdir(filepath):
+        return ("", filepath, "")
+    else:
+        dirpath = os.path.dirname(os.path.realpath(filepath))
+        filename, ext = os.path.splitext(os.path.basename(filepath))
+        return (dirpath, filename, ext)

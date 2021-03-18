@@ -2,12 +2,11 @@ import argparse
 import json
 import os
 import re
-from typing import *
-from enum import Enum, auto
-import yaml
-from collections import OrderedDict
 
-from utils import file_components, get_multiple, normalize_whitespace
+from typing import *
+
+import yaml
+from ..utils import file_components, get_multiple, normalize_whitespace
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
@@ -26,7 +25,6 @@ def map_questions(survey_element: dict) -> Optional[dict]:
         survey_element["PrimaryAttribute"],
         survey_element["Payload"],
     )
-
     (
         QuestionText,
         DataExportTag,
@@ -58,14 +56,20 @@ def map_questions(survey_element: dict) -> Optional[dict]:
     )
 
     merge_a_choices: Callable[[dict, dict], List[dict]] = lambda a_choices, questions: [
-        {**value, "answer_choices": a_choices,} for _, value in questions.items()
+        {
+            **value,
+            "answer_choices": a_choices,
+        }
+        for _, value in questions.items()
     ]
 
     def create_question(
-        q_num: str, q_str: str, a_choices: Optional[dict] = None,
+        q_num: str,
+        q_str: str,
+        a_choices: Optional[dict] = None,
     ) -> dict:
         """A question object is a question number, question string, and an optional series of
-        answer choices. We collate and normalize all three here. 
+        answer choices. We collate and normalize all three here.
 
         Qualtrics preserves the raw HTML in both question string and answer choice string,
         so we strip that away here.

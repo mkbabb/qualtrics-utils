@@ -1,11 +1,10 @@
 import argparse
 import json
-import logging
 import os
-import re
 from typing import *
 
-from utils import file_components, get_multiple, normalize_whitespace, quote_value
+from ..utils import (file_components, get_multiple, normalize_whitespace,
+                     quote_value)
 
 
 def sql_qualtrics_map_func(mapping: dict) -> dict:
@@ -97,7 +96,10 @@ def main():
     )
     parser.add_argument("input", help="Input file path.")
     parser.add_argument(
-        "--kind", help="Generated output kind.", choices=generator_types, required=True,
+        "--kind",
+        help="Generated output kind.",
+        choices=generator_types,
+        required=True,
     )
 
     args = parser.parse_args()
