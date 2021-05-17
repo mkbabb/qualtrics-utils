@@ -12,6 +12,8 @@ from typing import *
 import requests
 import sqlalchemy as sqla
 
+T = TypeVar("T")
+
 
 def init_logger(logfile_path: str, **kwargs: Any) -> None:
     backupCount = kwargs.pop("backupCount", 20)
@@ -164,6 +166,15 @@ def dict_update_nulls(
             dict1[key] = value
 
     return dict1
+
+
+def flatten_dict_by(values: List[dict], key=Callable[[dict], Optional[T]]) -> List[T]:
+    out: List[T] = []
+    for value in values:
+        t = key(value)
+        if t is not None:
+            out.append(t)
+    return out
 
 
 def list_concat(
