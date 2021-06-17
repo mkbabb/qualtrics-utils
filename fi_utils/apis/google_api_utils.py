@@ -173,6 +173,27 @@ def create_drive_file_object(
     return req.execute()
 
 
+def create_folders_if_not_exists(
+    folder_names: List[str],
+    parent_id: str,
+    drive_service: GoogleService,
+) -> Dict[str, Any]:
+    folder_dict = {i["name"]: i for i in list_files_in_folder(parent_id, drive_service)}
+
+    for name in folder_names:
+        folder = folder_dict.get(name)
+        if folder is None:
+            folder = create_drive_file_object(
+                name,
+                "folder",
+                drive_service,
+                kwargs={"body": {"parents": [parent_id]}},
+            )
+            folder_dict[name] = folder
+
+    return folder_dict
+
+
 def copy_file(
     service: GoogleService,
     file_id: str,
