@@ -1,19 +1,19 @@
-from fi_utils.utils import url_get_json
 import json
 import mimetypes
 import os
 import pickle
-import urllib.parse
 import urllib.request
 from typing import *
 
 import apiclient
 import google
 import googleapiclient
+from fi_utils.utils import url_get_json
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient import discovery
+
 from ..utils import file_components, update_url_params, url_components
 
 GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
@@ -47,32 +47,39 @@ def call_google_geocoding_api(address: str, api_key: str) -> Optional[Dict[str, 
     return url_get_json(url=url)
 
 
-def get_oauth2_creds(is_service_account: bool = False) -> Optional[GoogleCredentials]:
+def get_oauth2_creds(
+    is_service_account: bool = False,
+    token_path: str = TOKEN_PATH,
+    credentials_path: str = CREDENTIALS_PATH,
+    scopes: List[str] = SCOPES,
+) -> Optional[GoogleCredentials]:
     if not is_service_account:
         creds = None
 
-        if os.path.exists(TOKEN_PATH):
-            with open(TOKEN_PATH, "rb") as token:
+        if os.path.exists(token_path):
+            with open(token_path, "rb") as token:
                 creds = pickle.load(token)
+
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    CREDENTIALS_PATH, SCOPES
+                    credentials_path, scopes
                 )
                 creds = flow.run_local_server(port=0)
-
-            with open(TOKEN_PATH, "wb") as token:
+            with open(token_path, "wb") as token:
                 pickle.dump(creds, token)
+
         return creds
     else:
-        if os.path.exists(CREDENTIALS_PATH):
-            service_account_info = json.load(open(CREDENTIALS_PATH, "r"))
+        if os.path.exists(credentials_path):
+            service_account_info = json.load(open(credentials_path, "r"))
 
             return service_account.Credentials.from_service_account_info(
-                service_account_info, scopes=SCOPES
+                service_account_info, scopes=scopes
             )
+        return None
 
 
 def read_file_from_url(url: str, service: GoogleService) -> Tuple[dict, bytes]:
