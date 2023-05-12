@@ -93,7 +93,7 @@ def map_questions(survey_element: dict) -> Optional[dict]:
         questions = {}
 
         if isinstance(Choices, dict):
-            for key in enumerate(ChoiceOrder):
+            for key in ChoiceOrder:
                 key = str(key)
                 value = Choices[key]
                 
