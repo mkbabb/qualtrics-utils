@@ -2,11 +2,11 @@ import argparse
 import json
 import os
 import re
-
 from typing import *
 
 import yaml
-from ..utils import file_components, get_multiple, normalize_whitespace
+
+from fi_utils.utils import file_components, get_multiple, normalize_whitespace
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
@@ -31,6 +31,7 @@ def map_questions(survey_element: dict) -> Optional[dict]:
         QuestionType,
         QuestionDescription,
         Choices,
+        ChoiceOrder,
         Selector,
         RecodeValues,
         Answers,
@@ -42,6 +43,7 @@ def map_questions(survey_element: dict) -> Optional[dict]:
         "QuestionType",
         "QuestionDescription",
         "Choices",
+        "ChoiceOrder",
         "Selector",
         "RecodeValues",
         "Answers",
@@ -86,25 +88,32 @@ def map_questions(survey_element: dict) -> Optional[dict]:
 
     def explode_question_number() -> dict:
         """If we have choices to pick from, we map those choices to question numbers.
-        If a question number is found in the ChoiceDataExporTages object, that takes
+        If a question number is found in the ChoiceDataExportTags object, that takes
         precedence, so we map it to that number."""
         questions = {}
 
         if isinstance(Choices, dict):
-            for n, (key, value) in enumerate(Choices.items()):
-                # Qualtrics is 1-indexed.
-                sub_q_num = map_recode_values(str(n + 1))
+            for key in enumerate(ChoiceOrder):
+                key = str(key)
+                value = Choices[key]
+                
+                q_str = f"{root_q_str} - {value['Display']}"
+
+                sub_q_num = map_recode_values(key)
                 q_num = f"{root_q_num}_{sub_q_num}"
 
                 if isinstance(ChoiceDataExportTags, dict):
                     q_num = ChoiceDataExportTags.get(key, q_num)
 
                 if QuestionType != "TE" and value.get("TextEntry") is not None:
+                    questions[key] = create_question(q_num, q_str)
+
                     q_num += "_TEXT"
+                    key += "_TEXT"
 
-                q_str = f"{root_q_str} - {value['Display']}"
-
-                questions[key] = create_question(q_num, q_str)
+                    questions[key] = create_question(q_num, q_str)
+                else:
+                    questions[key] = create_question(q_num, q_str)
         else:
             questions["1"] = create_question(root_q_num, root_q_str)
 
