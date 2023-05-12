@@ -6,7 +6,7 @@ from typing import *
 
 import yaml
 
-from fi_utils.utils import file_components, get_multiple, normalize_whitespace
+from src.utils import file_components, get_multiple, normalize_whitespace
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
