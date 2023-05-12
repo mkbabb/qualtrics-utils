@@ -5,7 +5,7 @@ from io import BytesIO
 from typing import *
 from zipfile import ZipFile
 
-import numpy as np
+
 import pandas as pd
 import requests
 
@@ -191,6 +191,7 @@ class QualtricsSurveys:
             return r.json()
 
 
+# import numpy as np
 # from sqlalchemy import (
 #     Boolean,
 #     Column,
