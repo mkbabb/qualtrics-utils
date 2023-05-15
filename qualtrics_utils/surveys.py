@@ -24,7 +24,7 @@ class ExportedFile(Generic[T]):
     data: T
 
 
-class QualtricsSurveys:
+class Surveys:
     def __init__(self, api_token: str, version: str = VERSION):
         self.headers = HEADERS
         self.headers["X-API-TOKEN"] = api_token
@@ -38,7 +38,7 @@ class QualtricsSurveys:
             files = [zipfile.open(file_name) for file_name in zipfile.namelist()]
             return files.pop() if len(files) == 1 else files
 
-    def _make_api_url(self, url: str, **kwargs: Any):
+    def _make_api_url(self, url: str, **kwargs: Any) -> str:
         return urllib.parse.urljoin(self.base_url, url.format(**kwargs))
 
     def _response_export(

@@ -2,7 +2,7 @@ import re
 from typing import *
 
 
-def get_multiple(d: dict, *keys: Iterable[str]) -> dict:
+def get_multiple(d: dict[Any, Any], *keys: Iterable[Any]) -> dict[Any, Any]:
     return {key: d.get(key) for key in keys}
 
 
