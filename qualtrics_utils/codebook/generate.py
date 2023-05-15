@@ -192,8 +192,8 @@ def format_codebook(codebook: list[dict]) -> list[dict]:
     return codebook
 
 
-def create_codebook(filepath: pathlib.Path) -> list[dict]:
-    """Create a codebook from a Qualtrics .qsf file."""
+def generate_codebook(filepath: pathlib.Path) -> list[dict]:
+    """Generate a codebook from a Qualtrics .qsf file."""
     codebook: list[dict] = []
 
     with open(filepath, "r") as file:
@@ -226,7 +226,7 @@ def main() -> None:
 
     out_path = filepath.parent / f"{filepath.stem}-codebook"
 
-    codebook = create_codebook(filepath)
+    codebook = generate_codebook(filepath)
 
     with open(out_path, "w") as file:
         json.dump(codebook, file, indent=4)
