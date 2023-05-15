@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "qualtrics-utils"
-version = "0.5.0"
-description = "A set of utilities for working with Qualtrics data."
+version = "0.5.1"
+description = "Utilities for qualtrics surveys."
 authors = ["Mike Babb <mike7400@gmail.com>"]
 readme = "README.md"
 keywords = ["qualtrics"]

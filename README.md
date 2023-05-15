@@ -1,8 +1,8 @@
 # qualtrics-utils
 
-A collection of utility scripts for Qualtrics surveys.
+Utilities for qualtrics surveys. Get survey responses, generate codebooks, & c.
 
-## [Surveys](qualtrics_utils/surveys.py)
+## [`surveys`](qualtrics_utils/surveys.py)
 
 Module to interact with Qualtrics surveys.
 
@@ -16,7 +16,7 @@ qs = Surveys(api_token=QUALTRICS_API_TOKEN)
 exported_file = qs.get_responses_df(
     surveyId=SURVEY_ID, parse_dates=["StartDate", "EndDate"]
 )
-...
+df = exported_file.data
 ```
 
 ## Codebook mapping
