@@ -1,8 +1,13 @@
 [tool.poetry]
 name = "qualtrics-utils"
 version = "0.5.0"
-description = ""
+description = "A set of utilities for working with Qualtrics data."
 authors = ["Mike Babb <mike7400@gmail.com>"]
+readme = "README.md"
+keywords = ["qualtrics"]
+license = "MIT"
+repository = "https://github.com/mkbabb/qualtrics-utils"
+
 
 [tool.poetry.dependencies]
 python = "^3.10"
