@@ -1,12 +1,10 @@
 import argparse
 import json
-import os
+import pathlib
 import re
 from typing import *
 
-import yaml
-
-from src.utils import file_components, get_multiple, normalize_whitespace
+from qualtrics_utils.utils import get_multiple, normalize_whitespace
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
@@ -81,7 +79,6 @@ def map_questions(survey_element: dict) -> Optional[dict]:
             "question_string": q_str,
         }
         if a_choices is not None:
-
             return {**out, "answer_choices": a_choices}
         else:
             return out
@@ -96,7 +93,7 @@ def map_questions(survey_element: dict) -> Optional[dict]:
             for key in ChoiceOrder:
                 key = str(key)
                 value = Choices[key]
-                
+
                 q_str = f"{root_q_str} - {value['Display']}"
 
                 sub_q_num = map_recode_values(key)
@@ -164,7 +161,7 @@ def map_questions(survey_element: dict) -> Optional[dict]:
         return None
 
 
-def create_codebook(filepath: str) -> List[dict]:
+def create_codebook(filepath: pathlib.Path) -> List[dict]:
     codebook: List[dict] = []
 
     with open(filepath, "r") as file:
@@ -184,29 +181,16 @@ def create_codebook(filepath: str) -> List[dict]:
 
 
 def main() -> None:
-    OUTPUT_TYPES = ["json", "yaml"]
-
-    parser = argparse.ArgumentParser(
-        description="""Takes in an input Qualtrics qsf file and returns the numeric
-    code values mapped to their string counterparts.
-    Outputs a true JSON codebook.
-
-    To ensure the output codebook is as accurate as possible, please clear the
-    trash in Qualtrics before saving the .qsf file!
-    """
-    )
-    parser.add_argument("input", help="Input file path.")
-    parser.add_argument("--output_type", choices=OUTPUT_TYPES, default=OUTPUT_TYPES[0])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", help="Input file path.", type=pathlib.Path)
     args = parser.parse_args()
 
     filepath = args.input
-    dirpath, filename, ext = file_components(filepath)
-    output_type = args.output_type
 
-    if ext != ".qsf":
+    if filepath.suffix != ".qsf":
         raise ValueError("Please input a valid .qsf file.")
 
-    out_path = os.path.join(dirpath, f"{filename}-codebook")
+    out_path = filepath.parent / f"{filepath.stem}-codebook"
 
     def codebook_key(question: dict) -> float:
         try:
@@ -232,22 +216,8 @@ def main() -> None:
             }
             question["answer_choices"] = a_choices
 
-    if output_type == OUTPUT_TYPES[0]:
-        with open(out_path + ".json", "w") as file:
-            json.dump(codebook, file, indent=4)
-    elif output_type == OUTPUT_TYPES[1]:
-        noalias_dumper = yaml.dumper.SafeDumper
-        noalias_dumper.ignore_aliases = lambda self, data: True
-
-        with open(out_path + ".yaml", "w") as file:
-            stream = yaml.dump(
-                codebook,
-                Dumper=noalias_dumper,
-                indent=4,
-                default_flow_style=False,
-                sort_keys=False,
-            )
-            file.write(stream.replace("\n- ", "\n\n- "))
+    with open(out_path, "w") as file:
+        json.dump(codebook, file, indent=4)
 
 
 if __name__ == "__main__":

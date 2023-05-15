@@ -5,7 +5,6 @@ from io import BytesIO
 from typing import *
 from zipfile import ZipFile
 
-
 import pandas as pd
 import requests
 

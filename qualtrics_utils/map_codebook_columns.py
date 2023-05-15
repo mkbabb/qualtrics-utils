@@ -1,9 +1,9 @@
 import argparse
 import json
-import os
+import pathlib
 from typing import *
 
-from src.utils import file_components, normalize_whitespace, quote_value
+from qualtrics_utils.utils import normalize_whitespace, quote_value
 
 
 def sql_qualtrics_map_func(mapping: dict) -> dict:
@@ -67,11 +67,10 @@ def generate_tableau(key_mapping: dict) -> Tuple[str, str]:
 
 
 def map_columns(
-    map_filepath: str,
+    map_filepath: pathlib.Path,
     map_func: Callable[[dict], dict],
     generator_func: Callable[[dict], Tuple[str, str]],
 ) -> dict:
-
     with open(map_filepath, "r") as file:
         mapping_list = json.load(file)
         commands = {}
@@ -86,14 +85,11 @@ def map_columns(
         return commands
 
 
-def main():
+def main() -> None:
     generator_types = ["tableau", "sql"]
 
-    parser = argparse.ArgumentParser(
-        description="""
-    """
-    )
-    parser.add_argument("input", help="Input file path.")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input", help="Input file path.", type=pathlib.Path)
     parser.add_argument(
         "--kind",
         help="Generated output kind.",
@@ -104,11 +100,10 @@ def main():
     args = parser.parse_args()
 
     filepath = args.input
-    dirpath, filename, ext = file_components(filepath)
     kind = args.kind
-    out_path = os.path.join(dirpath, f"{filename}-{kind}-map.json")
+    out_path = filepath.parent / f"{filepath.name}-{kind}-map.json"
 
-    def get_map_and_generator_funcs(kind: str) -> Tuple[callable, callable]:
+    def get_map_and_generator_funcs(kind: str) -> Tuple[Callable, Callable]:
         if kind == "sql":
             # TODO: add proper table name retrieval?
             map_func = sql_qualtrics_map_func
