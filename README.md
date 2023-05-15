@@ -32,8 +32,8 @@ Example row:
 ```json
 {
         "question_number": "Q5.10",
-        "question_string": "What is your role at this school?"
-        "answer_choices": ...
+        "question_string": "What is your role at this school?",
+        "answer_choices": "..."
 },
 ```
 

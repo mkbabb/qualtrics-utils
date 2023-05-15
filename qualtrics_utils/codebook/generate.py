@@ -162,8 +162,9 @@ def map_questions(survey_element: dict) -> Optional[dict]:
 
 
 def format_codebook(codebook: list[dict]) -> list[dict]:
-    """Format the codebook to be more readable.
-    Sorts the codebook by question number, and normalizes the HTML
+    """Formats the codebook to be more readable.
+
+    Sorts by question number, and then normalizes the HTML
     in the question string and answer choices."""
 
     def codebook_key(question: dict) -> float:
@@ -193,7 +194,14 @@ def format_codebook(codebook: list[dict]) -> list[dict]:
 
 
 def generate_codebook(filepath: pathlib.Path) -> list[dict]:
-    """Generate a codebook from a Qualtrics .qsf file."""
+    """Generates a codebook from a Qualtrics .qsf file.
+
+    For more information on .qsf files, see:
+    https://api.qualtrics.com/docs/qsf
+
+    Args:
+        filepath (pathlib.Path): The path to the .qsf file.
+    """
     codebook: list[dict] = []
 
     with open(filepath, "r") as file:
