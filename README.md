@@ -9,7 +9,7 @@ Module to interact with Qualtrics surveys.
 Example (get a survey's responses, convert to a pandas DataFrame):
 
 ```python
-from qualtrics_utils import Surveys
+from qualtrics_utils.survey import Surveys
 
 qs = Surveys(api_token=QUALTRICS_API_TOKEN)
 
