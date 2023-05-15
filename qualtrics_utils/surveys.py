@@ -12,7 +12,9 @@ HEADERS = {"X-API-TOKEN": "", "Content-Type": "application/json"}
 
 VERSION = "v3"
 
-BASE_URL = lambda x: f"https://yul1.qualtrics.com/API/{x}/surveys/"
+BASE_URL: Callable[
+    [str], str
+] = lambda x: f"https://yul1.qualtrics.com/API/{x}/surveys/"
 
 T = TypeVar("T")
 
@@ -32,7 +34,8 @@ class Surveys:
         self.version = version
         self.base_url = BASE_URL(version)
 
-    def _get_zip(url: str):
+    @staticmethod
+    def _get_zip(url: str) -> IO[bytes] | list[IO[bytes]]:
         r = requests.get(url)
         with BytesIO(r.content) as data, ZipFile(data) as zipfile:
             files = [zipfile.open(file_name) for file_name in zipfile.namelist()]
@@ -46,18 +49,18 @@ class Surveys:
         surveyId: str,
         format: str = "csv",
         continuationToken: Optional[str] = None,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         response_export_url = self._make_api_url(
             "{surveyId}/export-responses", surveyId=surveyId
         )
 
         payload = {
-            "format": format,
-            "useLabels": True,
-            "breakoutSets": True,
-            "seenUnansweredRecode": -1,
-            "multiselectSeenUnansweredRecode": -1,
-            "allowContinuation": True,
+            "format": format,  # format of the exported file
+            "useLabels": True,  # use labels instead of numerical values
+            "breakoutSets": True,  # include breakout sets
+            "seenUnansweredRecode": -1,  # recode seen but unanswered questions as -1
+            "multiselectSeenUnansweredRecode": -1,  # recode multiselect seen but unanswered questions as -1
+            "allowContinuation": True,  # allow continuation of export via continuationToken
         }
         if continuationToken:
             payload["continuationToken"] = continuationToken
@@ -71,11 +74,11 @@ class Surveys:
         if r.status_code != 200:
             return None
         else:
-            return r.json()
+            return r.json() # type: ignore
 
     def _response_export_progress(
         self, surveyId: str, exportProgressId: str
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         progress_url = self._make_api_url(
             "{surveyId}/export-responses/{exportProgressId}",
             surveyId=surveyId,
@@ -84,7 +87,7 @@ class Surveys:
 
         while True:
             r = requests.get(progress_url, headers=HEADERS)
-            data = r.json()
+            data: dict[str, Any] = r.json()
 
             match data["result"]["status"]:
                 case "complete":
@@ -111,6 +114,16 @@ class Surveys:
         format: str = "csv",
         continuationToken: Optional[str] = None,
     ) -> ExportedFile[bytes] | None:
+        """Get responses from a survey by surveyId.
+        Outputs a file-like object, primarily containing bytes data in the format specified.
+
+        If a continuationToken is provided, the export will continue from where it left off.
+
+        Args:
+            surveyId (str): The surveyId of the survey to get responses from.
+            format (str, optional): The format of the response data. Defaults to "csv".
+            continuationToken (Optional[str], optional): The continuation token for the response export. Defaults to None.
+        """
         export = self._response_export(
             surveyId=surveyId, format=format, continuationToken=continuationToken
         )
@@ -134,7 +147,13 @@ class Surveys:
             data=file,
         )
 
-    def get_response(self, surveyId: str, responseId: str) -> dict | None:
+    def get_response(self, surveyId: str, responseId: str) -> dict[str, Any] | None:
+        """Get a single response from a survey by surveyId and responseId.
+
+        Args:
+            surveyId (str): The surveyId of the survey to get the response from.
+            responseId (str): The responseId of the response to get.
+        """
         response_url = self._make_api_url(
             "{surveyId}/responses/{responseId}",
             surveyId=surveyId,
@@ -146,7 +165,7 @@ class Surveys:
         if r.status_code != 200:
             return None
         else:
-            return r.json()
+            return r.json() # type: ignore
 
     def get_responses_df(
         self,
@@ -155,6 +174,21 @@ class Surveys:
         *args: Any,
         **kwargs: Any,
     ) -> ExportedFile[pd.DataFrame] | None:
+        """Get responses from a survey by surveyId.
+        Outputs a pandas DataFrame, with the index set to the ResponseId.
+
+        All blank values therein are replaced with pd.NA.,
+        and all columns that are entirely pd.NA. are cast to object.
+
+        If a continuationToken is provided, the export will continue from where it left off.
+
+        Args:
+            surveyId (str): The surveyId of the survey to get responses from.
+            continuationToken (Optional[str], optional): The continuation token for the response export. Defaults to None.
+            *args: Additional arguments to pass to pandas.read_csv.
+            **kwargs: Additional keyword arguments to pass to pandas.read_csv.
+        """
+
         raw_data = self.get_responses(
             surveyId=surveyId, continuationToken=continuationToken
         )
@@ -180,14 +214,19 @@ class Surveys:
                     data=new_df,
                 )
 
-    def get_survey_schema(self, surveyId: str) -> dict | None:
+    def get_survey_schema(self, surveyId: str) -> dict[str, Any] | None:
+        """Get the schema of a survey by surveyId.
+
+        Args:
+            surveyId (str): The surveyId of the survey to get the schema from.
+        """
         schema_url = self._make_api_url("{surveyId}", surveyId=surveyId)
         r = requests.get(schema_url, headers=HEADERS)
 
         if r.status_code != 200:
             return None
         else:
-            return r.json()
+            return r.json() # type: ignore
 
 
 # import numpy as np

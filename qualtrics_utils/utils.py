@@ -8,7 +8,6 @@ def get_multiple(d: dict[Any, Any], *keys: Iterable[Any]) -> dict[Any, Any]:
 
 def normalize_whitespace(s: str) -> str:
     RE_WHITESPACE = re.compile("\s+")
-
     s = re.sub(RE_WHITESPACE, " ", s)
     return s.strip()
 

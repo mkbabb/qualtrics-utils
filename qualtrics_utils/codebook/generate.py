@@ -55,7 +55,7 @@ def map_questions(survey_element: dict) -> Optional[dict]:
         lambda key: RecodeValues.get(key, key) if RecodeValues is not None else key
     )
 
-    merge_a_choices: Callable[[dict, dict], List[dict]] = lambda a_choices, questions: [
+    merge_a_choices: Callable[[dict, dict], list[dict]] = lambda a_choices, questions: [
         {
             **value,
             "answer_choices": a_choices,
@@ -161,8 +161,40 @@ def map_questions(survey_element: dict) -> Optional[dict]:
         return None
 
 
-def create_codebook(filepath: pathlib.Path) -> List[dict]:
-    codebook: List[dict] = []
+def format_codebook(codebook: list[dict]) -> list[dict]:
+    """Format the codebook to be more readable.
+    Sorts the codebook by question number, and normalizes the HTML
+    in the question string and answer choices."""
+
+    def codebook_key(question: dict) -> float:
+        try:
+            question_number = question["question_number"]
+            return float(question_number.split("Q")[1])
+        except:
+            return float("inf")
+
+    codebook = sorted(codebook, key=codebook_key)
+
+    for question in codebook:
+        q_str, a_choices = (
+            question.get("question_string", ""),
+            question.get("answer_choices"),
+        )
+
+        question["question_string"] = normalize_html_string(q_str)
+
+        if a_choices is not None:
+            a_choices = {
+                key: normalize_html_string(value) for key, value in a_choices.items()
+            }
+            question["answer_choices"] = a_choices
+
+    return codebook
+
+
+def create_codebook(filepath: pathlib.Path) -> list[dict]:
+    """Create a codebook from a Qualtrics .qsf file."""
+    codebook: list[dict] = []
 
     with open(filepath, "r") as file:
         qsf_json = json.load(file)
@@ -176,6 +208,8 @@ def create_codebook(filepath: pathlib.Path) -> List[dict]:
                 questions = map_questions(element)
                 if questions is not None:
                     codebook.extend(questions)
+
+    codebook = format_codebook(codebook)
 
     return codebook
 
@@ -192,29 +226,7 @@ def main() -> None:
 
     out_path = filepath.parent / f"{filepath.stem}-codebook"
 
-    def codebook_key(question: dict) -> float:
-        try:
-            question_number = question["question_number"]
-            return float(question_number.split("Q")[1])
-        except:
-            return float("inf")
-
     codebook = create_codebook(filepath)
-    codebook = sorted(codebook, key=codebook_key)
-
-    for question in codebook:
-        q_str, a_choices = (
-            question.get("question_string", ""),
-            question.get("answer_choices"),
-        )
-
-        question["question_string"] = normalize_html_string(q_str)
-
-        if a_choices is not None:
-            a_choices = {
-                key: normalize_html_string(value) for key, value in a_choices.items()
-            }
-            question["answer_choices"] = a_choices
 
     with open(out_path, "w") as file:
         json.dump(codebook, file, indent=4)
