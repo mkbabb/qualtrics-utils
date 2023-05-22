@@ -75,6 +75,9 @@ def map_questions(survey_element: dict) -> Optional[dict]:
         so we strip that away here.
         """
         out = {
+            "question_type": QuestionType,
+            "root_question_number": root_q_num,
+            "root_question_string": root_q_str,
             "question_number": q_num,
             "question_string": q_str,
         }
@@ -177,11 +180,13 @@ def format_codebook(codebook: list[dict]) -> list[dict]:
     codebook = sorted(codebook, key=codebook_key)
 
     for question in codebook:
-        q_str, a_choices = (
+        root_q_str, q_str, a_choices = (
+            question.get("root_question_string", ""),
             question.get("question_string", ""),
             question.get("answer_choices"),
         )
 
+        question["root_question_string"] = normalize_html_string(root_q_str)
         question["question_string"] = normalize_html_string(q_str)
 
         if a_choices is not None:
@@ -232,7 +237,7 @@ def main() -> None:
     if filepath.suffix != ".qsf":
         raise ValueError("Please input a valid .qsf file.")
 
-    out_path = filepath.parent / f"{filepath.stem}-codebook"
+    out_path = filepath.parent / f"{filepath.stem}-codebook.json"
 
     codebook = generate_codebook(filepath)
 
