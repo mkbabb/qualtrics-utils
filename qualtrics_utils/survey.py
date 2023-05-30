@@ -60,7 +60,9 @@ class Surveys:
             "breakoutSets": True,  # include breakout sets
             "seenUnansweredRecode": -1,  # recode seen but unanswered questions as -1
             "multiselectSeenUnansweredRecode": -1,  # recode multiselect seen but unanswered questions as -1
-            "allowContinuation": True,  # allow continuation of export via continuationToken
+            "allowContinuation": True
+            and continuationToken
+            is None,  # allow continuation of export via continuationToken
         }
         if continuationToken:
             payload["continuationToken"] = continuationToken
@@ -171,6 +173,7 @@ class Surveys:
         self,
         surveyId: str,
         continuationToken: Optional[str] = None,
+        filter_preview: bool = True,
         *args: Any,
         **kwargs: Any,
     ) -> ExportedFile[pd.DataFrame] | None:
@@ -197,9 +200,14 @@ class Surveys:
 
         with zipfile.ZipFile(BytesIO(raw_data.data)) as data:
             with data.open(data.filelist[0]) as f:
-                new_df: pd.DataFrame = pd.read_csv(f, skiprows=[1, 2], *args, **kwargs)  # type: ignore
+                new_df_reader = pd.read_csv(
+                    f, skiprows=[1, 2], *args, **kwargs, iterator=True
+                )
+                new_df = pd.concat(new_df_reader, ignore_index=True)
                 new_df.set_index("ResponseId", inplace=True)
-                new_df = new_df.replace(r"^\s*$", pd.NA, regex=True)
+
+                new_df.replace([r"^\s*$", "-1", -1], pd.NA, regex=True, inplace=True)
+
                 new_df = new_df.astype(
                     {
                         col: "object"
@@ -207,6 +215,9 @@ class Surveys:
                         if new_df[col].isna().all()
                     }
                 )
+
+                if filter_preview and "Status" in new_df.columns:
+                    new_df = new_df[new_df["Status"] != "Survey Preview"]
 
                 return ExportedFile(
                     fileId=raw_data.fileId,
