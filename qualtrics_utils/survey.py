@@ -74,7 +74,7 @@ class Surveys:
         if r.status_code != 200:
             return None
         else:
-            return r.json() # type: ignore
+            return r.json()  # type: ignore
 
     def _response_export_progress(
         self, surveyId: str, exportProgressId: str
@@ -165,7 +165,7 @@ class Surveys:
         if r.status_code != 200:
             return None
         else:
-            return r.json() # type: ignore
+            return r.json()  # type: ignore
 
     def get_responses_df(
         self,
@@ -197,7 +197,9 @@ class Surveys:
 
         with zipfile.ZipFile(BytesIO(raw_data.data)) as data:
             with data.open(data.filelist[0]) as f:
-                new_df: pd.DataFrame = pd.read_csv(f, skiprows=[1, 2], *args, **kwargs)
+                new_df_reader = pd.read_csv(f, skiprows=[1, 2], *args, **kwargs)
+                new_df = pd.concat([chunk for chunk in new_df_reader])
+                
                 new_df.set_index("ResponseId", inplace=True)
                 new_df = new_df.replace(r"^\s*$", pd.NA, regex=True)
                 new_df = new_df.astype(
@@ -226,7 +228,7 @@ class Surveys:
         if r.status_code != 200:
             return None
         else:
-            return r.json() # type: ignore
+            return r.json()  # type: ignore
 
 
 # import numpy as np

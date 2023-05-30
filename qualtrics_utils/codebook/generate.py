@@ -18,47 +18,36 @@ def normalize_html_string(s: str) -> str:
     return s
 
 
-def map_questions(survey_element: dict) -> Optional[dict[str, Any]]:
-    PrimaryAttribute, Payload = (
-        survey_element["PrimaryAttribute"],
-        survey_element["Payload"],
+def map_questions(survey_element: dict[str, Any]) -> Optional[dict[str, Any]]:
+    PrimaryAttribute: str = survey_element["PrimaryAttribute"]
+    Payload: dict[str, Any] = survey_element["Payload"]
+
+    QuestionText: str = Payload["QuestionText"]
+    DataExportTag: str = Payload["DataExportTag"]
+    QuestionType: str = Payload["QuestionType"]
+    QuestionDescription: str = Payload["QuestionDescription"]
+
+    Choices: Optional[dict[str, Any]] = Payload.get("Choices")
+    ChoiceOrder: Optional[list[str]] = Payload.get("ChoiceOrder")
+
+    if Choices is not None and ChoiceOrder is not None:
+        ChoiceOrder = [str(i) for i in ChoiceOrder]
+        Choices = {key: Choices[key] for key in ChoiceOrder}
+
+    Selector: Optional[str] = Payload.get("Selector")
+    RecodeValues: dict[str, str] = Payload.get("RecodeValues", {})
+
+    Answers: Optional[dict[str, Any]] = Payload.get("Answers")
+    ChoiceDataExportTags: Optional[dict[str, str] | bool] = Payload.get(
+        "ChoiceDataExportTags"
     )
-    (
-        QuestionText,
-        DataExportTag,
-        QuestionType,
-        QuestionDescription,
-        Choices,
-        ChoiceOrder,
-        Selector,
-        RecodeValues,
-        Answers,
-        ChoiceDataExportTags,
-    ) = get_multiple(
-        Payload,
-        "QuestionText",
-        "DataExportTag",
-        "QuestionType",
-        "QuestionDescription",
-        "Choices",
-        "ChoiceOrder",
-        "Selector",
-        "RecodeValues",
-        "Answers",
-        "ChoiceDataExportTags",
-    ).values()
 
-    root_q_num = DataExportTag
-    root_q_str = QuestionText
+    root_q_num: str = DataExportTag
+    root_q_str: str = QuestionText
 
-    def map_recode_values(key: str) -> str:
-        """Map recode values to the question number."""
-        if RecodeValues is not None:
-            return RecodeValues.get(key, key)
-        else:
-            return key
-
-    def merge_a_choices(a_choices: dict, questions: dict) -> list[dict]:
+    def merge_a_choices(
+        a_choices: dict[str, str], questions: dict[str, dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Merge answer choices into questions."""
         return [
             {
@@ -71,8 +60,8 @@ def map_questions(survey_element: dict) -> Optional[dict[str, Any]]:
     def create_question(
         q_num: str,
         q_str: str,
-        a_choices: Optional[dict] = None,
-    ) -> dict:
+        a_choices: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
         """A question object is a question number, question string, and an optional series of
         answer choices. We collate and normalize all three here.
 
@@ -88,40 +77,40 @@ def map_questions(survey_element: dict) -> Optional[dict[str, Any]]:
         else:
             return out
 
-    def explode_question_number() -> dict:
+    def explode_question_number() -> dict[str, dict[str, Any]]:
         """If we have choices to pick from, we map those choices to question numbers.
         If a question number is found in the ChoiceDataExportTags object, that takes
         precedence, so we map it to that number."""
         questions = {}
-
-        if isinstance(Choices, dict):
-            for key in ChoiceOrder:
-                key = str(key)
-                value = Choices[key]
-
-                q_str = f"{root_q_str} - {value['Display']}"
-
-                sub_q_num = map_recode_values(key)
-                q_num = f"{root_q_num}_{sub_q_num}"
-
-                if isinstance(ChoiceDataExportTags, dict):
-                    q_num = ChoiceDataExportTags.get(key, q_num)
-
-                if QuestionType != "TE" and value.get("TextEntry") is not None:
-                    questions[key] = create_question(q_num, q_str)
-
-                    q_num += "_TEXT"
-                    key += "_TEXT"
-
-                    questions[key] = create_question(q_num, q_str)
-                else:
-                    questions[key] = create_question(q_num, q_str)
-        else:
+        if Choices is None or ChoiceOrder is None:
             questions["1"] = create_question(root_q_num, root_q_str)
+            return questions
+
+        # sort Choices by ChoiceOrder:
+
+        for key, value in Choices.items():
+            sub_q_num = RecodeValues.get(key, key)
+            q_num = f"{root_q_num}_{sub_q_num}"
+
+            value = Choices[key]
+            q_str = value["Display"]
+
+            if isinstance(ChoiceDataExportTags, dict):
+                q_num = ChoiceDataExportTags.get(key, q_num)
+
+            if QuestionType != "TE" and value.get("TextEntry") is not None:
+                questions[key] = create_question(q_num, q_str)
+
+                q_num += "_TEXT"
+                key += "_TEXT"
+
+                questions[key] = create_question(q_num, q_str)
+            else:
+                questions[key] = create_question(q_num, q_str)
 
         return questions
 
-    def process_question():
+    def process_question() -> Optional[list[dict[str, Any]]]:
         if QuestionType == "Matrix":
             """A 2-d matrix option has one column of questions, then a series of columns as answers.
             For each question in the question column, we merge the answer choices, creating the final 2-d
@@ -138,8 +127,8 @@ def map_questions(survey_element: dict) -> Optional[dict[str, Any]]:
             q1: {a0: 00, a1: 00, a2: 00}
             """
             a_choices = {
-                map_recode_values(key): value["Display"]
-                for key, value in Answers.items()
+                RecodeValues.get(key, key): value["Display"]
+                for key, value in Answers.items()  # type: ignore
             }
             questions = explode_question_number()
             return merge_a_choices(a_choices, questions)
@@ -148,8 +137,8 @@ def map_questions(survey_element: dict) -> Optional[dict[str, Any]]:
             # Single answer
             if Selector == "DL" or Selector == "SAVR":
                 a_choices = {
-                    map_recode_values(key): value["Display"]
-                    for key, value in Choices.items()
+                    RecodeValues.get(key, key): value["Display"]
+                    for key, value in Choices.items()  # type: ignore
                 }
                 return [create_question(root_q_num, root_q_str, a_choices)]
             # Multiple answer, which creates a sort-of 2-d matrix.
@@ -157,8 +146,6 @@ def map_questions(survey_element: dict) -> Optional[dict[str, Any]]:
                 a_choices = {"-1": "Not Selected", "1": "Selected", "Null": "Not Shown"}
                 questions = explode_question_number()
                 return merge_a_choices(a_choices, questions)
-            else:
-                return None
         # Text entry, so no answer choices here.
         elif QuestionType == "TE":
             questions = explode_question_number()
@@ -174,20 +161,14 @@ def map_questions(survey_element: dict) -> Optional[dict[str, Any]]:
     }
 
 
-def format_codebook(codebook: list[dict]) -> list[dict]:
+def format_codebook(codebook: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Formats the codebook to be more readable.
 
     Sorts by question number, and then normalizes the HTML
     in the question string and answer choices."""
 
-    def codebook_key(question: dict) -> float:
-        try:
-            question_number = question["question_number"]
-            return float(question_number.split("Q")[1])
-        except:
-            return float("inf")
-
-    codebook = sorted(codebook, key=codebook_key)
+    # sort by question number
+    codebook.sort(key=lambda x: float(str(x["question_number"]).lstrip("Q")))
 
     for root_question in codebook:
         root_q_str = root_question["question_string"]
@@ -195,10 +176,6 @@ def format_codebook(codebook: list[dict]) -> list[dict]:
 
         if root_question["questions"] is None:
             continue
-
-        root_question["questions"] = list(
-            sorted(root_question["questions"], key=codebook_key)
-        )
 
         for question in root_question["questions"]:
             q_str, a_choices = (
@@ -214,10 +191,10 @@ def format_codebook(codebook: list[dict]) -> list[dict]:
                 }
                 question["answer_choices"] = a_choices
 
-        return codebook
+    return codebook
 
 
-def generate_codebook(filepath: pathlib.Path) -> list[dict]:
+def generate_codebook(filepath: pathlib.Path) -> list[dict[str, Any]]:
     """Generates a codebook from a Qualtrics .qsf file.
 
     For more information on .qsf files, see:
@@ -226,7 +203,7 @@ def generate_codebook(filepath: pathlib.Path) -> list[dict]:
     Args:
         filepath (pathlib.Path): The path to the .qsf file.
     """
-    codebook: list[dict] = []
+    codebook: list[dict[str, Any]] = []
 
     with open(filepath, "r") as file:
         qsf_json = json.load(file)
