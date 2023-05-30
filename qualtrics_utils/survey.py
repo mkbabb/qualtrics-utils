@@ -197,9 +197,7 @@ class Surveys:
 
         with zipfile.ZipFile(BytesIO(raw_data.data)) as data:
             with data.open(data.filelist[0]) as f:
-                new_df_reader = pd.read_csv(f, skiprows=[1, 2], *args, **kwargs)
-                new_df = pd.concat([chunk for chunk in new_df_reader])
-                
+                new_df: pd.DataFrame = pd.read_csv(f, skiprows=[1, 2], *args, **kwargs)  # type: ignore
                 new_df.set_index("ResponseId", inplace=True)
                 new_df = new_df.replace(r"^\s*$", pd.NA, regex=True)
                 new_df = new_df.astype(

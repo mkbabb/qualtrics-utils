@@ -4,7 +4,7 @@ import pathlib
 import re
 from typing import *
 
-from qualtrics_utils.utils import get_multiple, normalize_whitespace
+from qualtrics_utils.utils import normalize_whitespace
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 

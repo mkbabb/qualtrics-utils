@@ -1,9 +1,7 @@
 import re
 from typing import *
 
-
-def get_multiple(d: dict[Any, Any], *keys: Iterable[Any]) -> dict[Any, Any]:
-    return {key: d.get(key) for key in keys}
+import pandas as pd
 
 
 def normalize_whitespace(s: str) -> str:
@@ -17,3 +15,27 @@ def quote_value(value: str, quote: str = "`") -> str:
         return value
     else:
         return f"{quote}{value}{quote}"
+
+
+def coalesce_multiselect(
+    df: pd.DataFrame, codebook: list[dict[str, Any]], delimiter: str = ","
+) -> pd.DataFrame:
+    for question in codebook:
+        if question["question_type"] == "MC":
+            root_question = question["question_number"]
+            sub_questions = question.get("questions", [])
+            if len(sub_questions) <= 1:
+                continue
+
+            sub_question_numbers = [
+                sub_question["question_number"] for sub_question in sub_questions
+            ]
+            sub_question_columns = [
+                col for col in df.columns if col in sub_question_numbers
+            ]
+            df[root_question] = df[sub_question_columns].apply(
+                lambda x: delimiter.join(x.dropna().astype(str)), axis=1
+            )
+            df.drop(sub_question_columns, axis=1, inplace=True)
+
+    return df
