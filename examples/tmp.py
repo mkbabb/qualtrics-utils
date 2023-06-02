@@ -5,11 +5,10 @@ import pandas as pd
 
 from qualtrics_utils import (
     Surveys,
-    generate_codebook,
     coalesce_multiselect,
+    generate_codebook,
     rename_columns,
 )
-
 
 config_path = pathlib.Path("auth/config.json")
 config = json.loads(config_path.read_text())

@@ -44,13 +44,13 @@ def coalesce_multiselect(
     df: pd.DataFrame,
     codebook: list[dict[str, Any]],
     delimiter: str = ", ",
-    use_other: bool = True,
+    use_multiple: bool = True,
 ) -> pd.DataFrame:
     def join(x: pd.Series) -> str:
         l = x.dropna().tolist()
 
-        if use_other and len(l) > 1:
-            return "Other"
+        if use_multiple and len(l) > 1:
+            return "Multiple"
         else:
             return delimiter.join(l)
 
