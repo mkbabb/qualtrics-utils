@@ -4,7 +4,7 @@ import pathlib
 from typing import *
 
 from qualtrics_utils.codebook.generate import generate_codebook
-from qualtrics_utils.utils import normalize_html, quote_value
+from qualtrics_utils.utils import normalize_html_string, quote_value
 
 GENERATOR_TYPES = ["tableau", "sql"]
 
@@ -33,7 +33,7 @@ def generate_sql(table_name: str, key_mapping: dict) -> Tuple[str, str]:
     for sub_key, sub_value in mapping.items():
         sub_key, sub_value = (
             quote_value(sub_key, '"'),
-            quote_value(normalize_html(sub_value), '"'),
+            quote_value(normalize_html_string(sub_value), '"'),
         )
         s += f"\tWHEN {key} = {sub_key} THEN {sub_value}\n"
 
@@ -59,7 +59,7 @@ def generate_tableau(key_mapping: dict) -> Tuple[str, str]:
     s = ""
     for n, (sub_key, sub_value) in enumerate(mapping.items()):
         sub_key = sub_key if str(sub_key).isnumeric() else quote_value(sub_key, "'")
-        sub_value = quote_value(normalize_html(sub_value), "'")
+        sub_value = quote_value(normalize_html_string(sub_value), "'")
 
         s += "ELSE" if n > 0 else ""
         s += f"IF [{key}] == {sub_key} THEN "

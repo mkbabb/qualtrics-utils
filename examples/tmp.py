@@ -8,7 +8,9 @@ from qualtrics_utils import (
     coalesce_multiselect,
     generate_codebook,
     rename_columns,
+    sync_responses_sheets,
 )
+from googleapiutils2 import Sheets, get_oauth2_creds
 
 config_path = pathlib.Path("auth/config.json")
 config = json.loads(config_path.read_text())
@@ -18,16 +20,27 @@ qs = Surveys(api_token=qualtrics_api_token)
 
 survey_id = config["qualtrics"]["survey_id"]
 
-exported_file = qs.get_responses_df(
-    surveyId=survey_id, parse_dates=["StartDate", "EndDate"]
+responses_url = config["google"]["urls"]["responses"]
+
+creds = get_oauth2_creds(config["google"]["credentials_path"])
+sheets = Sheets(creds=creds)
+
+
+def post_processing_func(df: pd.DataFrame):
+    codebook_path = pathlib.Path(config["qualtrics"]["codebook_path"])
+
+    codebook = generate_codebook(codebook_path)
+    tmp = coalesce_multiselect(df, codebook=codebook)
+    tmp = rename_columns(tmp, codebook=codebook)
+
+    return tmp
+
+
+sync_responses_sheets(
+    survey_id=survey_id,
+    sheet_name="Sheet1",
+    sheet_url=responses_url,
+    surveys=qs,
+    sheets=sheets,
+    post_processing_func=post_processing_func,
 )
-if exported_file is None:
-    raise ValueError("No responses found.")
-
-responses_df = exported_file.data
-
-codebook_path = pathlib.Path(config["qualtrics"]["codebook_path"])
-
-codebook = generate_codebook(codebook_path)
-tmp = coalesce_multiselect(responses_df, codebook=codebook)
-tmp = rename_columns(tmp, codebook=codebook)

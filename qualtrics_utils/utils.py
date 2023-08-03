@@ -3,11 +3,23 @@ from typing import *
 
 import pandas as pd
 
+RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
+
+RE_SPACE = re.compile(r"&nbsp;")
+
+RE_WHITESPACE = re.compile("\s+")
+
 
 def normalize_whitespace(s: str) -> str:
-    RE_WHITESPACE = re.compile("\s+")
     s = re.sub(RE_WHITESPACE, " ", s)
     return s.strip()
+
+
+def normalize_html_string(s: str) -> str:
+    s = re.sub(RE_HTML_TAG, "", s)
+    s = re.sub(RE_SPACE, " ", s)
+    s = normalize_whitespace(s)
+    return s
 
 
 def quote_value(value: str, quote: str = "`") -> str:

@@ -4,18 +4,7 @@ import pathlib
 import re
 from typing import *
 
-from qualtrics_utils.utils import normalize_whitespace
-
-RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
-
-RE_SPACE = re.compile(r"&nbsp;")
-
-
-def normalize_html_string(s: str) -> str:
-    s = re.sub(RE_HTML_TAG, "", s)
-    s = re.sub(RE_SPACE, " ", s)
-    s = normalize_whitespace(s)
-    return s
+from qualtrics_utils.utils import normalize_html_string
 
 
 def map_questions(survey_element: dict[str, Any]) -> Optional[dict[str, Any]]:

@@ -1,29 +1,13 @@
 import urllib.parse
 import zipfile
-from dataclasses import dataclass
 from io import BytesIO
-from typing import *
+from typing import IO, Any, Optional
 from zipfile import ZipFile
 
 import pandas as pd
 import requests
 
-HEADERS = {"X-API-TOKEN": "", "Content-Type": "application/json"}
-
-VERSION = "v3"
-
-BASE_URL: Callable[
-    [str], str
-] = lambda x: f"https://yul1.qualtrics.com/API/{x}/surveys/"
-
-T = TypeVar("T")
-
-
-@dataclass
-class ExportedFile(Generic[T]):
-    fileId: str
-    continuationToken: str
-    data: T
+from qualtrics_utils.misc import BASE_URL, HEADERS, VERSION, ExportedFile
 
 
 class Surveys:
@@ -76,7 +60,7 @@ class Surveys:
         if r.status_code != 200:
             return None
         else:
-            return r.json()  # type: ignore
+            return r.json()
 
     def _response_export_progress(
         self, surveyId: str, exportProgressId: str
@@ -144,6 +128,7 @@ class Surveys:
         file = self._response_export_file(surveyId=surveyId, fileId=fileId)
 
         return ExportedFile(
+            surveyId=surveyId,
             fileId=fileId,
             continuationToken=export_progress["result"]["continuationToken"],
             data=file,
@@ -167,7 +152,7 @@ class Surveys:
         if r.status_code != 200:
             return None
         else:
-            return r.json()  # type: ignore
+            return r.json()
 
     def get_responses_df(
         self,
@@ -220,6 +205,7 @@ class Surveys:
                     new_df = new_df[new_df["Status"] != "Survey Preview"]
 
                 return ExportedFile(
+                    surveyId=raw_data.surveyId,
                     fileId=raw_data.fileId,
                     continuationToken=raw_data.continuationToken,
                     data=new_df,
@@ -237,59 +223,4 @@ class Surveys:
         if r.status_code != 200:
             return None
         else:
-            return r.json()  # type: ignore
-
-
-# import numpy as np
-# from sqlalchemy import (
-#     Boolean,
-#     Column,
-#     DateTime,
-#     Float,
-#     Integer,
-#     MetaData,
-#     String,
-#     Table,
-#     Text,
-# )
-
-
-# def pd_dtype_to_sqlalchemy(dtype: np.dtype):
-#     if np.issubdtype(dtype, np.integer):
-#         return Integer
-#     elif np.issubdtype(dtype, np.floating):
-#         return Float
-#     elif np.issubdtype(dtype, np.datetime64):
-#         return DateTime
-#     elif (
-#         np.issubdtype(dtype, np.dtype("O"))
-#         or np.issubdtype(dtype, np.dtype("S"))
-#         or np.issubdtype(dtype, np.dtype("U"))
-#     ):
-#         return Text
-#     elif np.issubdtype(dtype, np.bool_):
-#         return Boolean
-#     else:
-#         raise ValueError(f"Unsupported dtype: {dtype}")
-
-
-# def generate_mysql_schema(
-#     df: pd.DataFrame,
-#     table_name: str,
-#     index_as_pk: bool = False,
-#     auto_increment: bool = True,
-# ):
-#     metadata = MetaData()
-#     columns = [
-#         Column(name, pd_dtype_to_sqlalchemy(dtype)) for name, dtype in df.dtypes.items()
-#     ]
-#     columns = [
-#         Column(name, pd_dtype_to_sqlalchemy(dtype), primary_key=index_as_pk)
-#         for name, dtype in df.index.to_frame().dtypes.items()
-#     ] + columns
-
-#     if auto_increment:
-#         columns.insert(0, Column("id", Integer, primary_key=True, autoincrement=True))
-
-#     table = Table(table_name, metadata, *columns)
-#     return table
+            return r.json()
