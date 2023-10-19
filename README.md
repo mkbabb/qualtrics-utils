@@ -14,7 +14,7 @@ from qualtrics_utils.survey import Surveys
 qs = Surveys(api_token=QUALTRICS_API_TOKEN)
 
 exported_file = qs.get_responses_df(
-    surveyId=SURVEY_ID, parse_dates=["StartDate", "EndDate"]
+    survey_id=SURVEY_ID, parse_dates=["StartDate", "EndDate"]
 )
 df = exported_file.data
 ```

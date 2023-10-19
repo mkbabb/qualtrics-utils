@@ -71,18 +71,19 @@ def get_status_table(table_name: str):
 
         id = Column(Integer, primary_key=True, autoincrement=True)
         timestamp = Column(DateTime, server_default=func.now())
-        continuationToken = Column(Text)
-        fileId = Column(Text)
+        continuation_token = Column(Text)
+        file_id = Column(Text)
 
     return SurveyStatus()
 
 
-format_status_name = lambda surveyId: f"{surveyId}_status"
+format_status_name = lambda survey_id: f"{survey_id}_status"
 
 
 def format_status_row(exported_file: ExportedFile[T]):
     return dict(
-        continuationToken=exported_file.continuationToken, fileId=exported_file.fileId
+        continuation_token=exported_file.continuation_token,
+        file_id=exported_file.file_id,
     )
 
 
@@ -97,10 +98,10 @@ def write_status_sql(
         exported_file (ExportedFile[T]): The responses to create a status table for.
         conn (sqlalchemy.Connection): The connection to the MySQL database.
     """
-    table_name = format_status_name(exported_file.surveyId)
+    table_name = format_status_name(exported_file.survey_id)
 
     if create_table and not conn.dialect.has_table(conn, table_name):
-        table = get_status_table(exported_file.surveyId)
+        table = get_status_table(exported_file.survey_id)
         table.create(conn)
 
     metadata = MetaData()
@@ -127,7 +128,7 @@ def get_last_continuation_token_sql(
     if result is None:
         return None
 
-    return result["continuationToken"]  # type: ignore
+    return result["continuation_token"]  # type: ignore
 
 
 def write_responses_sql(
@@ -169,10 +170,10 @@ def sync_responses_sql(
     *args,
     **kwargs,
 ):
-    continuationToken = get_last_continuation_token_sql(survey_id=survey_id, conn=conn)
+    continuation_token = get_last_continuation_token_sql(survey_id=survey_id, conn=conn)
 
     exported_file = surveys.get_responses_df(
-        surveyId=survey_id, continuationToken=continuationToken, *args, **kwargs
+        survey_id=survey_id, continuation_token=continuation_token, *args, **kwargs
     )
 
     if exported_file is None:
@@ -209,7 +210,7 @@ def get_last_continuation_token_sheets(
     if last_status is None:
         return None
 
-    return last_status.iloc[0]["continuationToken"]
+    return last_status.iloc[0]["continuation_token"]
 
 
 def write_status_sheets(
@@ -217,7 +218,7 @@ def write_status_sheets(
     sheet_url: str,
     sheets: Sheets,
 ):
-    sheet_name = format_status_name(exported_file.surveyId)
+    sheet_name = format_status_name(exported_file.survey_id)
 
     row = format_status_row(exported_file)
     return sheets.append(
@@ -263,12 +264,12 @@ def sync_responses_sheets(
     *args,
     **kwargs,
 ):
-    continuationToken = get_last_continuation_token_sheets(
+    continuation_token = get_last_continuation_token_sheets(
         survey_id=survey_id, sheet_url=sheet_url, sheets=sheets
     )
 
     exported_file = surveys.get_responses_df(
-        surveyId=survey_id, continuationToken=continuationToken, *args, **kwargs
+        survey_id=survey_id, continuation_token=continuation_token, *args, **kwargs
     )
 
     if exported_file is None:

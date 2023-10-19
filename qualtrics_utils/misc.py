@@ -7,14 +7,14 @@ VERSION = "v3"
 
 BASE_URL: Callable[
     [str], str
-] = lambda x: f"https://yul1.qualtrics.com/API/{x}/surveys/"
+] = lambda version: f"https://yul1.qualtrics.com/API/{version}"
 
 T = TypeVar("T")
 
 
 @dataclass
 class ExportedFile(Generic[T]):
-    surveyId: str
-    fileId: str
-    continuationToken: str
+    survey_id: str
+    file_id: str
+    continuation_token: str
     data: T
