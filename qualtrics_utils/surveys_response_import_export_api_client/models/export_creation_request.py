@@ -84,7 +84,12 @@ class ExportCreationRequest:
                     <dt><b>_recordId</b></dt><dd>Response ID</dd>
                     <dt><b>locationLatitude</b></dt><dd>Latitude</dd>
                     <dt><b>locationLongitude</b></dt><dd>Longitude</dd>
-                </dl>
+                    <dt><b>recipientLastName</b></dt><dd>Recipient Last Name</dd>
+            .       <dt><b>recipientFirstName</b></dt><dd>Recipient First Name</dd>
+            .       <dt><b>recipientEmail</b></dt><dd>Recipient Email</dd>
+            .       <dt><b>externalReference</b></dt><dd>External Reference</dd>
+            .       <dt><b>distributionChannel</b></dt><dd>Distribution Channel</dd>
+            </dl>
         continuation_token (Union[Unset, str]): Provide the continuation token returned from a previous export in order
             to get new responses recorded (or updated, if `sortByLastModifiedDate` is set to `true`) since that export. Note
             that a token is only returned if either `allowContinuation` or `continuationToken` is set. Continuation tokens

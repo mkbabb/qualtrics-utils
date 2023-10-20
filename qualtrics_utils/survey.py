@@ -16,7 +16,6 @@ from qualtrics_utils.surveys_response_import_export_api_client.api.response_expo
     create_export,
     get_export_file,
     get_export_progress,
-    get_filters_list,
 )
 from qualtrics_utils.surveys_response_import_export_api_client.client import (
     AuthenticatedClient,
@@ -29,6 +28,7 @@ from qualtrics_utils.surveys_response_import_export_api_client.models import (
     RequestStatus,
 )
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
+from qualtrics_utils.utils import reset_request_defaults
 
 SKIP_ROWS = [1, 2]
 
@@ -36,6 +36,9 @@ SKIP_ROWS = [1, 2]
 class Surveys:
     def __init__(self, api_token: str, version: str = VERSION):
         self.base_url = BASE_URL(version)
+
+        self.headers = HEADERS.copy()
+        self.headers["X-API-TOKEN"] = api_token
 
         self.version = version
 
@@ -63,25 +66,27 @@ class Surveys:
         use_labels: bool = True,
         end_date: datetime.datetime | None = None,
         start_date: datetime.datetime | None = None,
+        export_responses_in_progress: bool = False,
         continuation_token: Optional[str] = None,
     ):
-        payload = ExportCreationRequest(
+        kwargs = dict(
             format_=format,
-            # use_labels=use_labels,
-            # breakout_sets=True,
-            # seen_unanswered_recode=-1,
-            # multiselect_seen_unanswered_recode=-1,
-            # allow_continuation=continuation_token is not None,
-            # sort_by_last_modified_date=False,
-            # time_zone=UNSET,
-            # include_label_columns=not use_labels,
+            use_labels=use_labels,
+            breakout_sets=True,
+            seen_unanswered_recode=-1,
+            multiselect_seen_unanswered_recode=-1,
+            allow_continuation=True,
+            sort_by_last_modified_date=False,
+            include_label_columns=not use_labels,
+            compress=True,
+            export_responses_in_progress=export_responses_in_progress,
+            end_date=end_date if end_date is not None else UNSET,
+            start_date=start_date if start_date is not None else UNSET,
+            continuation_token=continuation_token if continuation_token else UNSET,
         )
-        if end_date is not None:
-            payload.end_date = end_date
-        if start_date is not None:
-            payload.start_date = start_date
-        if continuation_token is not None:
-            payload.continuation_token = continuation_token
+        payload = ExportCreationRequest(**kwargs)  # type: ignore
+        # ! This is a HACK because the Qualtrics OpenAPI docs suck tremendously and the defaults are NOT correct.
+        payload = reset_request_defaults(payload, kwargs)
 
         return create_export.sync(
             survey_id=survey_id,
@@ -120,6 +125,7 @@ class Surveys:
         use_labels: bool = True,
         end_date: datetime.datetime | None = None,
         start_date: datetime.datetime | None = None,
+        export_responses_in_progress: bool = False,
         continuation_token: Optional[str] = None,
         last_response_id: Optional[str] = None,
     ) -> ExportedFile[bytes]:
@@ -133,6 +139,10 @@ class Surveys:
         Args:
             survey_id (str): The survey_id of the survey to get responses from.
             format (str, optional): The format of the response data. Defaults to "csv".
+            use_labels (bool, optional): Whether to use labels for the column names. Defaults to True.
+            end_date (Optional[datetime.datetime], optional): The end date for the response export. Defaults to None.
+            start_date (Optional[datetime.datetime], optional): The start date for the response export. Defaults to None.
+            export_responses_in_progress (bool, optional): Whether to export responses that are in progress. Defaults to False.
             continuation_token (Optional[str], optional): The continuation token for the response export. Defaults to None.
             last_response_id (Optional[str], optional): The responseId of the last response to export. Defaults to None.
         """
@@ -147,8 +157,9 @@ class Surveys:
             survey_id=survey_id,
             format=format,
             use_labels=use_labels,
-            start_date=start_date,
             end_date=end_date,
+            start_date=start_date,
+            export_responses_in_progress=export_responses_in_progress,
             continuation_token=continuation_token,
         )
 
@@ -177,11 +188,11 @@ class Surveys:
             response_id (str): The response_id of the response to get.
         """
         response_url = self._make_api_url(
-            "{survey_id}/responses/{response_id}",
+            "surveys/{survey_id}/responses/{response_id}",
             survey_id=survey_id,
             response_id=response_id,
         )
-        r = requests.get(response_url, headers=HEADERS)
+        r = requests.get(response_url, headers=self.headers)
         r.raise_for_status()
         return r.json()
 
@@ -191,7 +202,7 @@ class Surveys:
         response = self.get_response(survey_id=survey_id, response_id=response_id)
 
         return datetime.datetime.fromisoformat(
-            response["response"]["values"]["StartDate"]
+            response["result"]["values"]["startDate"]
         )
 
     def get_responses_df(
@@ -200,6 +211,7 @@ class Surveys:
         use_labels: bool = True,
         end_date: datetime.datetime | None = None,
         start_date: datetime.datetime | None = None,
+        export_responses_in_progress: bool = False,
         continuation_token: Optional[str] = None,
         last_response_id: Optional[str] = None,
         filter_preview: bool = True,
@@ -227,6 +239,7 @@ class Surveys:
             use_labels=use_labels,
             end_date=end_date,
             start_date=start_date,
+            export_responses_in_progress=export_responses_in_progress,
             continuation_token=continuation_token,
             last_response_id=last_response_id,
         )
@@ -244,10 +257,14 @@ class Surveys:
                 new_df = pd.concat(new_df_reader, ignore_index=True)
                 new_df.set_index("ResponseId", inplace=True)
 
+                # If the last response is the same as the last response from the previous export, drop it.
+                if new_df.index[0] == last_response_id:
+                    new_df.drop(new_df.index[0], inplace=True)
+                # Sort by StartDate
                 new_df.sort_values("StartDate", inplace=True)
-
+                # Replace all blank values with pd.NA
                 new_df.replace([r"^\s*$", "-1", -1], pd.NA, regex=True, inplace=True)
-
+                # Cast all columns that are entirely pd.NA to object (str)
                 new_df = new_df.astype(
                     {
                         col: "object"
@@ -255,11 +272,14 @@ class Surveys:
                         if new_df[col].isna().all()
                     }
                 )
-
+                # Filter out Survey Preview responses
                 if filter_preview and "Status" in new_df.columns:
                     new_df = new_df[new_df["Status"] != "Survey Preview"]
 
-                last_response_id = new_df.index[-1].iloc[0] if len(new_df) > 0 else None
+                # Set the last_response_id to the last response in the DataFrame, or the last_response_id from the previous export.
+                last_response_id = (
+                    new_df.index[-1] if len(new_df) > 0 else last_response_id
+                )
 
                 return ExportedFile(
                     survey_id=raw_data.survey_id,

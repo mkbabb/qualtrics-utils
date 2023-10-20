@@ -3,11 +3,16 @@ from typing import *
 
 import pandas as pd
 
+from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
+from attr import asdict
+
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
 RE_SPACE = re.compile(r"&nbsp;")
 
 RE_WHITESPACE = re.compile("\s+")
+
+T = TypeVar("T")
 
 
 def normalize_whitespace(s: str) -> str:
@@ -27,6 +32,25 @@ def quote_value(value: str, quote: str = "`") -> str:
         return value
     else:
         return f"{quote}{value}{quote}"
+
+
+def reset_request_defaults(request: T, set_items: dict[str, Any]) -> T:
+    """Set all attributes of d to UNSET except for those in set_items
+    This is useful for when you want all defaults to be UNSET, but you want to set some attributes to a value.
+
+    Args:
+        request (Any): Input request object from an OpenAPI client.
+        set_items (dict[str, Any]): Dictionary of attributes that were explicitly set.
+    """
+    # request must have a to_dict() and from_dict() method
+    if not hasattr(request, "to_dict") or not hasattr(request, "from_dict"):
+        raise ValueError("request must have a to_dict() and from_dict() method")
+
+    for k, v in asdict(request).items():  # type: ignore
+        if k not in set_items and not isinstance(v, dict):
+            setattr(request, k, UNSET)
+
+    return request
 
 
 def rename_columns(df: pd.DataFrame, codebook: list[dict[str, Any]]) -> pd.DataFrame:

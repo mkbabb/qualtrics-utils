@@ -83,7 +83,7 @@ format_status_name = lambda survey_id: f"{survey_id}_status"
 def format_status_row(exported_file: ExportedFile[T]):
     return dict(
         file_id=exported_file.file_id,
-        timestamp=exported_file.timestamp,
+        timestamp=exported_file.timestamp.isoformat(),
         last_response_id=exported_file.last_response_id,
         continuation_token=exported_file.continuation_token,
     )
@@ -116,9 +116,7 @@ def write_status_sql(
     )
 
 
-def get_last_continuation_token_sql(
-    survey_id: str, conn: sqlalchemy.Connection
-) -> str | None:
+def get_last_status_sql(survey_id: str, conn: sqlalchemy.Connection):
     table_name = format_status_name(survey_id)
 
     metadata = MetaData()
@@ -126,11 +124,7 @@ def get_last_continuation_token_sql(
 
     query = table.select().order_by(table.c.id.desc()).limit(1)
 
-    result = conn.execute(query).fetchone()
-    if result is None:
-        return None
-
-    return result["continuation_token"]  # type: ignore
+    return conn.execute(query).fetchone()
 
 
 def write_responses_sql(
@@ -172,14 +166,16 @@ def sync_responses_sql(
     *args,
     **kwargs,
 ):
-    continuation_token = get_last_continuation_token_sql(survey_id=survey_id, conn=conn)
-
-    exported_file = surveys.get_responses_df(
-        survey_id=survey_id, continuation_token=continuation_token, *args, **kwargs
+    last_status = get_last_status_sql(
+        survey_id=survey_id,
+        conn=conn,
     )
-
-    if exported_file is None:
-        return
+    last_response_id = (
+        last_status["last_response_id"] if last_status is not None else None
+    )
+    exported_file = surveys.get_responses_df(
+        survey_id=survey_id, last_response_id=last_response_id, *args, **kwargs
+    )
 
     exported_file.data = post_processing_func(exported_file.data)
 
@@ -189,7 +185,6 @@ def sync_responses_sql(
         conn=conn,
         create_table=create_table,
     )
-
     write_status_sql(
         exported_file=exported_file,
         conn=conn,
@@ -209,7 +204,7 @@ def get_last_status_sheets(
     )
 
     last_status = sheet[..., ...].to_frame()
-    if last_status is None:
+    if last_status is None or last_status.empty:
         return None
 
     return last_status.iloc[-1].to_dict()
@@ -248,11 +243,6 @@ def write_responses_sheets(
         range_name=sheet_name,
         values=values,
     )
-    sheets.resize_columns(
-        spreadsheet_id=sheet_url,
-        sheet_name=sheet_name,
-        width=None,
-    )
 
 
 def sync_responses_sheets(
@@ -265,17 +255,19 @@ def sync_responses_sheets(
     *args,
     **kwargs,
 ):
-    continuation_token = get_last_continuation_token_sheets(
+    last_status = get_last_status_sheets(
         survey_id=survey_id, sheet_url=sheet_url, sheets=sheets
+    )
+    last_response_id = (
+        last_status["last_response_id"] if last_status is not None else None
     )
 
     exported_file = surveys.get_responses_df(
-        survey_id=survey_id, continuation_token=continuation_token, *args, **kwargs
+        survey_id=survey_id,
+        last_response_id=last_response_id,
+        *args,
+        **kwargs,
     )
-
-    if exported_file is None:
-        return
-
     exported_file.data = post_processing_func(exported_file.data)
 
     write_responses_sheets(
@@ -284,7 +276,6 @@ def sync_responses_sheets(
         sheet_url=sheet_url,
         sheets=sheets,
     )
-
     write_status_sheets(
         exported_file=exported_file,
         sheet_url=sheet_url,

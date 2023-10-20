@@ -8,7 +8,7 @@ VERSION = "v3"
 
 BASE_URL: Callable[
     [str], str
-] = lambda version: f"https://yul1.qualtrics.com/API/{version}"
+] = lambda version: f"https://yul1.qualtrics.com/API/{version}/"
 
 T = TypeVar("T")
 

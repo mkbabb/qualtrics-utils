@@ -10,7 +10,7 @@ repository = "https://github.com/mkbabb/qualtrics-utils"
 
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 pandas = "^2.0.3"
 requests = "^2.31.0"
 sqlalchemy = "^2.0.20"
