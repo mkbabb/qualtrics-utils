@@ -2,9 +2,10 @@ import re
 from typing import *
 
 import pandas as pd
+import sqlalchemy
+from attr import asdict
 
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
-from attr import asdict
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
@@ -53,14 +54,21 @@ def reset_request_defaults(request: T, set_items: dict[str, Any]) -> T:
     return request
 
 
-def rename_columns(df: pd.DataFrame, codebook: list[dict[str, Any]]) -> pd.DataFrame:
+def rename_columns(
+    df: pd.DataFrame, codebook: list[dict[str, Any]], verbose: bool = True
+) -> pd.DataFrame:
     renaming_map = {}
     for question in codebook:
         root_q_num = question["question_number"]
         sub_questions = question.get("questions")
 
         if root_q_num in df.columns:
-            renaming_map[root_q_num] = f"{root_q_num} - {question['question_string']}"
+            if verbose:
+                renaming_map[
+                    root_q_num
+                ] = f"{root_q_num} - {question['question_string']}"
+            else:
+                renaming_map[root_q_num] = f"{root_q_num}"
 
         if sub_questions is not None and len(sub_questions) >= 1:
             for sub_question in sub_questions:
@@ -68,9 +76,14 @@ def rename_columns(df: pd.DataFrame, codebook: list[dict[str, Any]]) -> pd.DataF
                 if not q_num in df.columns:
                     continue
 
-                renaming_map[
-                    q_num
-                ] = f"{root_q_num} - {sub_question['question_string']}"
+                if verbose:
+                    renaming_map[
+                        q_num
+                    ] = f"{root_q_num} - {sub_question['question_string']}"
+                else:
+                    renaming_map[
+                        q_num
+                    ] = f"{sub_question['question_number']}"
 
     df.rename(columns=renaming_map, inplace=True, errors="ignore")
     return df
@@ -115,3 +128,11 @@ def coalesce_multiselect(
         df[root_q_num] = root_question_df
 
     return df
+
+
+def create_mysql_engine(
+    username: str, password: str, host: str, port: str, database: str, **kwargs: Any
+) -> sqlalchemy.engine.Engine:
+    engine_str = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
+    engine = sqlalchemy.create_engine(engine_str)
+    return engine

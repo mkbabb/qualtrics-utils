@@ -101,7 +101,7 @@ class Surveys:
                 export_progress_id=export_progress_id,
                 client=self.client,
             )
-            status = r.result.status
+            status = r.result.status  # type: ignore
             match status:
                 case None | RequestStatus.FAILED:
                     raise Exception("Export failed", r)
@@ -132,9 +132,9 @@ class Surveys:
         """Get responses from a survey by survey_id.
         Outputs a file-like object, primarily containing bytes data in the format specified.
 
-        If a continuation_token is provided, the export will continue from where it left off. The continuation_token **cannot** be older than 1 week.
-
         If a last_response_id is provided, the export will continue from the response after the last_response_id.
+
+        If a continuation_token is provided, the export will continue from where it left off. The continuation_token **cannot** be older than 1 week.
 
         Args:
             survey_id (str): The survey_id of the survey to get responses from.
@@ -216,22 +216,26 @@ class Surveys:
         last_response_id: Optional[str] = None,
         filter_preview: bool = True,
         parse_dates: list[str] = ["StartDate", "EndDate"],
-        *args: Any,
-        **kwargs: Any,
     ) -> ExportedFile[pd.DataFrame]:
         """Get responses from a survey by survey_id.
-        Outputs a pandas DataFrame, with the index set to the ResponseId.
+        Outputs a pandas DataFrame, with the index set to `ResponseId`.
 
         All blank values therein are replaced with pd.NA.,
-        and all columns that are entirely pd.NA. are cast to object.
+        and all columns that are entirely pd.NA are cast to an object.
 
-        If a continuation_token is provided, the export will continue from where it left off.
+        If a last_response_id is provided, the export will continue from the response after the last_response_id.
+        If a continuation_token is provided, the export will continue from where it left off. The continuation_token **cannot** be older than 1 week.
 
         Args:
             survey_id (str): The survey_id of the survey to get responses from.
+            use_labels (bool, optional): Whether to use labels for the column names. Defaults to True.
+            end_date (Optional[datetime.datetime], optional): The end date for the response export. Defaults to None.
+            start_date (Optional[datetime.datetime], optional): The start date for the response export. Defaults to None.
+            export_responses_in_progress (bool, optional): Whether to export responses that are in progress. Defaults to False.
             continuation_token (Optional[str], optional): The continuation token for the response export. Defaults to None.
-            *args: Additional arguments to pass to pandas.read_csv.
-            **kwargs: Additional keyword arguments to pass to pandas.read_csv.
+            last_response_id (Optional[str], optional): The responseId of the last response to export. Defaults to None.
+            filter_preview (bool, optional): Whether to filter out Survey Preview responses. Defaults to True.
+            parse_dates (list[str], optional): List of columns to parse as dates. Defaults to ["StartDate", "EndDate"].
         """
 
         raw_data = self.get_responses(
@@ -249,8 +253,6 @@ class Surveys:
                 new_df_reader = pd.read_csv(
                     f,
                     skiprows=SKIP_ROWS,
-                    *args,
-                    **kwargs,
                     parse_dates=parse_dates,
                     iterator=True,
                 )

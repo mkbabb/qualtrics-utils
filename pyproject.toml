@@ -23,6 +23,7 @@ mypy = "^1.5.1"
 black = "^23.7.0"
 types-requests = "^2.31.0.2"
 pytest = "^7.4.0"
+pymysql = "^1.1.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

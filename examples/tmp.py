@@ -8,15 +8,12 @@ from qualtrics_utils import (
     coalesce_multiselect,
     generate_codebook,
     rename_columns,
-    sync_responses_sheets,
 )
 from googleapiutils2 import Sheets, get_oauth2_creds
 
-from qualtrics_utils.sync import (
-    get_last_status_sheets,
-    write_responses_sheets,
-    write_status_sheets,
-)
+from qualtrics_utils.sync import sync, SyncType
+from qualtrics_utils.utils import create_mysql_engine
+
 
 config_path = pathlib.Path("auth/config.json")
 config = json.loads(config_path.read_text())
@@ -37,34 +34,41 @@ def post_processing_func(df: pd.DataFrame):
 
     codebook = generate_codebook(codebook_path)
     tmp = coalesce_multiselect(df, codebook=codebook)
-    tmp = rename_columns(tmp, codebook=codebook)
+    tmp = rename_columns(tmp, codebook=codebook, verbose=False)
 
     return tmp
 
 
-sheet_url = responses_url
-sheet_name = "Sheet1"
+# sync(
+#     survey_id=survey_id,
+#     surveys=surveys,
+#     sync_type=SyncType.SHEETS,
+#     response_post_processing_func=post_processing_func,
+#     sheet_name="Sheet1",
+#     sheet_url=responses_url,
+#     sheets=sheets,
+# )
 
-last_status = get_last_status_sheets(
-    survey_id=survey_id, sheet_url=sheet_url, sheets=sheets
-)
-last_response_id = last_status["last_response_id"] if last_status is not None else None
 
-exported_file = surveys.get_responses_df(
-    survey_id=survey_id,
-    last_response_id=last_response_id,
-)
-exported_file.data = post_processing_func(exported_file.data)
+start_date = "2023-05-09T00:00:00Z"
+start_date = pd.to_datetime(start_date)
 
-write_responses_sheets(
-    exported_file=exported_file,
-    sheet_name=sheet_name,
-    sheet_url=sheet_url,
-    sheets=sheets,
+engine = create_mysql_engine(
+    **config["mysql"],
 )
 
-write_status_sheets(
-    exported_file=exported_file,
-    sheet_url=sheet_url,
-    sheets=sheets,
-)
+
+with engine.connect() as conn:
+    table_name = "de_2023"
+
+    sync(
+        survey_id=survey_id,
+        surveys=surveys,
+        sync_type=SyncType.SQL,
+        response_post_processing_func=post_processing_func,
+        #
+        start_date=start_date,
+        #
+        conn=conn,
+        table_name=table_name,
+    )
