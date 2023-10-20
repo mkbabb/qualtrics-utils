@@ -12,7 +12,6 @@ from sqlalchemy import (
     Float,
     Integer,
     MetaData,
-    String,
     Table,
     Text,
     func,
@@ -346,3 +345,99 @@ def sync(
             *args,
             **kwargs,
         )  # type: ignore
+
+
+def main():
+    import json
+    import pathlib
+    from argparse import ArgumentParser
+
+    import pandas as pd
+    from googleapiutils2 import Sheets, get_oauth2_creds
+
+    from qualtrics_utils import (
+        Surveys,
+        coalesce_multiselect,
+        create_mysql_engine,
+        generate_codebook,
+        rename_columns,
+    )
+
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=pathlib.Path,
+        required=False,
+        default=pathlib.Path("auth/config.json"),
+    )
+
+    parser.add_argument("--verbose", action="store_true")
+
+    parser.add_argument("--table-name", type=str, default="Sheet1")
+
+    parser.add_argument(
+        "--sync-type", type=SyncType, required=False, default=SyncType.SQL
+    )
+
+    args = parser.parse_args()
+
+    config = json.loads(args.config.read_text())
+
+    qualtrics_api_token = config["qualtrics"]["api_token"]
+    codebook_path = pathlib.Path(config["qualtrics"]["codebook_path"])
+
+    surveys = Surveys(api_token=qualtrics_api_token)
+
+    survey_id = config["qualtrics"]["survey_id"]
+
+    sync_type: SyncType = args.sync_type  # type: ignore
+    table_name = args.table_name
+    verbose = args.verbose
+
+    survey_args = config["qualtrics"]["survey_args"]
+
+    def post_processing_func(df: pd.DataFrame):
+        codebook = generate_codebook(codebook_path)
+        tmp = coalesce_multiselect(df, codebook=codebook)
+        tmp = rename_columns(tmp, codebook=codebook, verbose=verbose)
+
+        return tmp
+
+    if sync_type == SyncType.SHEETS:
+        responses_url = config["google"]["urls"]["responses"]
+
+        creds = get_oauth2_creds(config["google"]["credentials_path"])
+        sheets = Sheets(creds=creds)
+
+        sync(
+            survey_id=survey_id,
+            surveys=surveys,
+            sync_type=sync_type,
+            response_post_processing_func=post_processing_func,
+            #
+            sheet_name=table_name,
+            sheet_url=responses_url,
+            sheets=sheets,
+            #
+            **survey_args,
+        )
+    elif sync_type == SyncType.SQL:
+        engine = create_mysql_engine(
+            **config["mysql"],
+        )
+        with engine.connect() as conn:
+            sync(
+                survey_id=survey_id,
+                surveys=surveys,
+                sync_type=sync_type,
+                response_post_processing_func=post_processing_func,
+                #
+                conn=conn,
+                table_name=table_name,
+                #
+                **survey_args,
+            )
+
+
+if __name__ == "__main__":
+    main()

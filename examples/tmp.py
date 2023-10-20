@@ -39,36 +39,36 @@ def post_processing_func(df: pd.DataFrame):
     return tmp
 
 
-# sync(
-#     survey_id=survey_id,
-#     surveys=surveys,
-#     sync_type=SyncType.SHEETS,
-#     response_post_processing_func=post_processing_func,
-#     sheet_name="Sheet1",
-#     sheet_url=responses_url,
-#     sheets=sheets,
-# )
-
-
-start_date = "2023-05-09T00:00:00Z"
-start_date = pd.to_datetime(start_date)
-
-engine = create_mysql_engine(
-    **config["mysql"],
+sync(
+    survey_id=survey_id,
+    surveys=surveys,
+    sync_type=SyncType.SHEETS,
+    response_post_processing_func=post_processing_func,
+    sheet_name="Sheet1",
+    sheet_url=responses_url,
+    sheets=sheets,
 )
 
 
-with engine.connect() as conn:
-    table_name = "de_2023"
+# start_date = "2023-05-09T00:00:00Z"
+# start_date = pd.to_datetime(start_date)
 
-    sync(
-        survey_id=survey_id,
-        surveys=surveys,
-        sync_type=SyncType.SQL,
-        response_post_processing_func=post_processing_func,
-        #
-        start_date=start_date,
-        #
-        conn=conn,
-        table_name=table_name,
-    )
+# engine = create_mysql_engine(
+#     **config["mysql"],
+# )
+
+
+# with engine.connect() as conn:
+#     table_name = "de_2023"
+
+#     sync(
+#         survey_id=survey_id,
+#         surveys=surveys,
+#         sync_type=SyncType.SQL,
+#         response_post_processing_func=post_processing_func,
+#         #
+#         start_date=start_date,
+#         #
+#         conn=conn,
+#         table_name=table_name,
+#     )

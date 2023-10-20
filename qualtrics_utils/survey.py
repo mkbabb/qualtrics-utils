@@ -8,6 +8,7 @@ from io import BytesIO
 from typing import IO, Any, Optional
 from zipfile import ZipFile
 
+import loguru
 import pandas as pd
 import requests
 
@@ -68,6 +69,7 @@ class Surveys:
         start_date: datetime.datetime | None = None,
         export_responses_in_progress: bool = False,
         continuation_token: Optional[str] = None,
+        **kwargs: Any,
     ):
         kwargs = dict(
             format_=format,
@@ -83,8 +85,9 @@ class Surveys:
             end_date=end_date if end_date is not None else UNSET,
             start_date=start_date if start_date is not None else UNSET,
             continuation_token=continuation_token if continuation_token else UNSET,
+            **kwargs,
         )
-        payload = ExportCreationRequest(**kwargs)  # type: ignore
+        payload = ExportCreationRequest(**kwargs)
         # ! This is a HACK because the Qualtrics OpenAPI docs suck tremendously and the defaults are NOT correct.
         payload = reset_request_defaults(payload, kwargs)
 
@@ -128,12 +131,12 @@ class Surveys:
         export_responses_in_progress: bool = False,
         continuation_token: Optional[str] = None,
         last_response_id: Optional[str] = None,
+        **kwargs: Any,
     ) -> ExportedFile[bytes]:
         """Get responses from a survey by survey_id.
         Outputs a file-like object, primarily containing bytes data in the format specified.
 
         If a last_response_id is provided, the export will continue from the response after the last_response_id.
-
         If a continuation_token is provided, the export will continue from where it left off. The continuation_token **cannot** be older than 1 week.
 
         Args:
@@ -161,6 +164,7 @@ class Surveys:
             start_date=start_date,
             export_responses_in_progress=export_responses_in_progress,
             continuation_token=continuation_token,
+            **kwargs,
         )
 
         progress_id = export.result.progress_id
@@ -216,6 +220,7 @@ class Surveys:
         last_response_id: Optional[str] = None,
         filter_preview: bool = True,
         parse_dates: list[str] = ["StartDate", "EndDate"],
+        **kwargs: Any,
     ) -> ExportedFile[pd.DataFrame]:
         """Get responses from a survey by survey_id.
         Outputs a pandas DataFrame, with the index set to `ResponseId`.
@@ -225,6 +230,8 @@ class Surveys:
 
         If a last_response_id is provided, the export will continue from the response after the last_response_id.
         If a continuation_token is provided, the export will continue from where it left off. The continuation_token **cannot** be older than 1 week.
+
+        Additional arguments are passed to `get_responses`.
 
         Args:
             survey_id (str): The survey_id of the survey to get responses from.
@@ -236,6 +243,7 @@ class Surveys:
             last_response_id (Optional[str], optional): The responseId of the last response to export. Defaults to None.
             filter_preview (bool, optional): Whether to filter out Survey Preview responses. Defaults to True.
             parse_dates (list[str], optional): List of columns to parse as dates. Defaults to ["StartDate", "EndDate"].
+
         """
 
         raw_data = self.get_responses(
@@ -246,6 +254,7 @@ class Surveys:
             export_responses_in_progress=export_responses_in_progress,
             continuation_token=continuation_token,
             last_response_id=last_response_id,
+            **kwargs,
         )
 
         with zipfile.ZipFile(BytesIO(raw_data.data)) as data:

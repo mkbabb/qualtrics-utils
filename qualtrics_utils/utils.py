@@ -5,6 +5,7 @@ import pandas as pd
 import sqlalchemy
 from attr import asdict
 
+from qualtrics_utils.misc import T
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
@@ -12,8 +13,6 @@ RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 RE_SPACE = re.compile(r"&nbsp;")
 
 RE_WHITESPACE = re.compile("\s+")
-
-T = TypeVar("T")
 
 
 def normalize_whitespace(s: str) -> str:
@@ -81,9 +80,7 @@ def rename_columns(
                         q_num
                     ] = f"{root_q_num} - {sub_question['question_string']}"
                 else:
-                    renaming_map[
-                        q_num
-                    ] = f"{sub_question['question_number']}"
+                    renaming_map[q_num] = f"{sub_question['question_number']}"
 
     df.rename(columns=renaming_map, inplace=True, errors="ignore")
     return df
