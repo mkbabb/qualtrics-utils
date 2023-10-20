@@ -12,7 +12,9 @@ from .export_status_response import ExportStatusResponse
 from .export_status_response_result import ExportStatusResponseResult
 from .get_filters_list_response import GetFiltersListResponse
 from .get_filters_list_response_result import GetFiltersListResponseResult
-from .get_filters_list_response_result_elements_item import GetFiltersListResponseResultElementsItem
+from .get_filters_list_response_result_elements_item import (
+    GetFiltersListResponseResultElementsItem,
+)
 from .import_by_url_creation_request import ImportByURLCreationRequest
 from .import_status_response import ImportStatusResponse
 from .import_status_response_not_found import ImportStatusResponseNotFound

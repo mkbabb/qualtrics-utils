@@ -200,7 +200,9 @@ class ExportCreationRequest:
         if limit is not UNSET:
             field_dict["limit"] = limit
         if multiselect_seen_unanswered_recode is not UNSET:
-            field_dict["multiselectSeenUnansweredRecode"] = multiselect_seen_unanswered_recode
+            field_dict[
+                "multiselectSeenUnansweredRecode"
+            ] = multiselect_seen_unanswered_recode
         if newline_replacement is not UNSET:
             field_dict["newlineReplacement"] = newline_replacement
         if seen_unanswered_recode is not UNSET:
@@ -254,7 +256,9 @@ class ExportCreationRequest:
 
         limit = d.pop("limit", UNSET)
 
-        multiselect_seen_unanswered_recode = d.pop("multiselectSeenUnansweredRecode", UNSET)
+        multiselect_seen_unanswered_recode = d.pop(
+            "multiselectSeenUnansweredRecode", UNSET
+        )
 
         newline_replacement = d.pop("newlineReplacement", UNSET)
 

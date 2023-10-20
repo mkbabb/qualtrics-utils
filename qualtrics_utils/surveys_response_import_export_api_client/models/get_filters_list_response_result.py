@@ -4,7 +4,9 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 if TYPE_CHECKING:
-    from ..models.get_filters_list_response_result_elements_item import GetFiltersListResponseResultElementsItem
+    from ..models.get_filters_list_response_result_elements_item import (
+        GetFiltersListResponseResultElementsItem,
+    )
 
 
 T = TypeVar("T", bound="GetFiltersListResponseResult")
@@ -44,13 +46,17 @@ class GetFiltersListResponseResult:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        from ..models.get_filters_list_response_result_elements_item import GetFiltersListResponseResultElementsItem
+        from ..models.get_filters_list_response_result_elements_item import (
+            GetFiltersListResponseResultElementsItem,
+        )
 
         d = src_dict.copy()
         elements = []
         _elements = d.pop("elements")
         for elements_item_data in _elements:
-            elements_item = GetFiltersListResponseResultElementsItem.from_dict(elements_item_data)
+            elements_item = GetFiltersListResponseResultElementsItem.from_dict(
+                elements_item_data
+            )
 
             elements.append(elements_item)
 

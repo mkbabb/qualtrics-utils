@@ -40,7 +40,14 @@ def _get_kwargs(
 def _parse_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Optional[
-    Union[CreationResponse, CreationResponseInvalid, CreationResponseTooLarge, InternalError, Meta, SurveyNotFound]
+    Union[
+        CreationResponse,
+        CreationResponseInvalid,
+        CreationResponseTooLarge,
+        InternalError,
+        Meta,
+        SurveyNotFound,
+    ]
 ]:
     if response.status_code == HTTPStatus.OK:
         response_200 = CreationResponse.from_dict(response.json())
@@ -79,7 +86,14 @@ def _parse_response(
 def _build_response(
     *, client: Union[AuthenticatedClient, Client], response: httpx.Response
 ) -> Response[
-    Union[CreationResponse, CreationResponseInvalid, CreationResponseTooLarge, InternalError, Meta, SurveyNotFound]
+    Union[
+        CreationResponse,
+        CreationResponseInvalid,
+        CreationResponseTooLarge,
+        InternalError,
+        Meta,
+        SurveyNotFound,
+    ]
 ]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -96,7 +110,14 @@ def sync_detailed(
     json_body: CreateImportJsonBody,
     idempotency_key: Union[Unset, str] = "",
 ) -> Response[
-    Union[CreationResponse, CreationResponseInvalid, CreationResponseTooLarge, InternalError, Meta, SurveyNotFound]
+    Union[
+        CreationResponse,
+        CreationResponseInvalid,
+        CreationResponseTooLarge,
+        InternalError,
+        Meta,
+        SurveyNotFound,
+    ]
 ]:
     r""" Start Response Import
 
@@ -180,7 +201,14 @@ def sync(
     json_body: CreateImportJsonBody,
     idempotency_key: Union[Unset, str] = "",
 ) -> Optional[
-    Union[CreationResponse, CreationResponseInvalid, CreationResponseTooLarge, InternalError, Meta, SurveyNotFound]
+    Union[
+        CreationResponse,
+        CreationResponseInvalid,
+        CreationResponseTooLarge,
+        InternalError,
+        Meta,
+        SurveyNotFound,
+    ]
 ]:
     r""" Start Response Import
 
@@ -259,7 +287,14 @@ async def asyncio_detailed(
     json_body: CreateImportJsonBody,
     idempotency_key: Union[Unset, str] = "",
 ) -> Response[
-    Union[CreationResponse, CreationResponseInvalid, CreationResponseTooLarge, InternalError, Meta, SurveyNotFound]
+    Union[
+        CreationResponse,
+        CreationResponseInvalid,
+        CreationResponseTooLarge,
+        InternalError,
+        Meta,
+        SurveyNotFound,
+    ]
 ]:
     r""" Start Response Import
 
@@ -341,7 +376,14 @@ async def asyncio(
     json_body: CreateImportJsonBody,
     idempotency_key: Union[Unset, str] = "",
 ) -> Optional[
-    Union[CreationResponse, CreationResponseInvalid, CreationResponseTooLarge, InternalError, Meta, SurveyNotFound]
+    Union[
+        CreationResponse,
+        CreationResponseInvalid,
+        CreationResponseTooLarge,
+        InternalError,
+        Meta,
+        SurveyNotFound,
+    ]
 ]:
     r""" Start Response Import
 

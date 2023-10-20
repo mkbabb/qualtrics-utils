@@ -1,63 +1,62 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Type, TypeVar
+from typing import Any, Dict, List, Type, TypeVar, Union
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-if TYPE_CHECKING:
-    from ..models.get_filters_list_response_result import GetFiltersListResponseResult
-    from ..models.meta import Meta
+from ..types import UNSET, Unset
 
-
-T = TypeVar("T", bound="GetFiltersListResponse")
+T = TypeVar("T", bound="Meta")
 
 
 @_attrs_define
-class GetFiltersListResponse:
+class Meta:
     """
     Attributes:
-        result (GetFiltersListResponseResult):
-        meta (Meta):
+        http_status (str): HTTP status code
+        request_id (str): An identifier for the incoming request.
+        notice (Union[Unset, str]):
     """
 
-    result: "GetFiltersListResponseResult"
-    meta: "Meta"
+    http_status: str
+    request_id: str
+    notice: Union[Unset, str] = UNSET
     additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        result = self.result.to_dict()
-
-        meta = self.meta.to_dict()
+        http_status = self.http_status
+        request_id = self.request_id
+        notice = self.notice
 
         field_dict: Dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "result": result,
-                "meta": meta,
+                "httpStatus": http_status,
+                "requestId": request_id,
             }
         )
+        if notice is not UNSET:
+            field_dict["notice"] = notice
 
         return field_dict
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        from ..models.get_filters_list_response_result import (
-            GetFiltersListResponseResult,
-        )
-        from ..models.meta import Meta
-
         d = src_dict.copy()
-        result = GetFiltersListResponseResult.from_dict(d.pop("result"))
+        http_status = d.pop("httpStatus")
 
-        meta = Meta.from_dict(d.pop("meta"))
+        request_id = d.pop("requestId")
 
-        get_filters_list_response = cls(
-            result=result,
-            meta=meta,
+        notice = d.pop("notice", UNSET)
+
+        meta = cls(
+            http_status=http_status,
+            request_id=request_id,
+            notice=notice,
         )
 
-        get_filters_list_response.additional_properties = d
-        return get_filters_list_response
+        meta.additional_properties = d
+        return meta
 
     @property
     def additional_keys(self) -> List[str]:

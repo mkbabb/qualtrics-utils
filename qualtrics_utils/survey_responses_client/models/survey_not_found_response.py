@@ -4,35 +4,29 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 if TYPE_CHECKING:
-    from ..models.get_filters_list_response_result import GetFiltersListResponseResult
-    from ..models.meta import Meta
+    from ..models.meta_with_error import MetaWithError
 
 
-T = TypeVar("T", bound="GetFiltersListResponse")
+T = TypeVar("T", bound="SurveyNotFoundResponse")
 
 
 @_attrs_define
-class GetFiltersListResponse:
+class SurveyNotFoundResponse:
     """
     Attributes:
-        result (GetFiltersListResponseResult):
-        meta (Meta):
+        meta (MetaWithError):
     """
 
-    result: "GetFiltersListResponseResult"
-    meta: "Meta"
+    meta: "MetaWithError"
     additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        result = self.result.to_dict()
-
         meta = self.meta.to_dict()
 
         field_dict: Dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "result": result,
                 "meta": meta,
             }
         )
@@ -41,23 +35,17 @@ class GetFiltersListResponse:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        from ..models.get_filters_list_response_result import (
-            GetFiltersListResponseResult,
-        )
-        from ..models.meta import Meta
+        from ..models.meta_with_error import MetaWithError
 
         d = src_dict.copy()
-        result = GetFiltersListResponseResult.from_dict(d.pop("result"))
+        meta = MetaWithError.from_dict(d.pop("meta"))
 
-        meta = Meta.from_dict(d.pop("meta"))
-
-        get_filters_list_response = cls(
-            result=result,
+        survey_not_found_response = cls(
             meta=meta,
         )
 
-        get_filters_list_response.additional_properties = d
-        return get_filters_list_response
+        survey_not_found_response.additional_properties = d
+        return survey_not_found_response
 
     @property
     def additional_keys(self) -> List[str]:

@@ -4,22 +4,24 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 if TYPE_CHECKING:
-    from ..models.get_filters_list_response_result import GetFiltersListResponseResult
+    from ..models.get_schema_response_result import GetSchemaResponseResult
     from ..models.meta import Meta
 
 
-T = TypeVar("T", bound="GetFiltersListResponse")
+T = TypeVar("T", bound="GetSchemaResponse")
 
 
 @_attrs_define
-class GetFiltersListResponse:
-    """
-    Attributes:
-        result (GetFiltersListResponseResult):
-        meta (Meta):
+class GetSchemaResponse:
+    """The JSON Schema describing the `values` field a survey response of the format returned by JSON Response Exports and
+    by the Retrieve a Survey Response endpoint.
+
+        Attributes:
+            result (GetSchemaResponseResult):
+            meta (Meta):
     """
 
-    result: "GetFiltersListResponseResult"
+    result: "GetSchemaResponseResult"
     meta: "Meta"
     additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -41,23 +43,21 @@ class GetFiltersListResponse:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        from ..models.get_filters_list_response_result import (
-            GetFiltersListResponseResult,
-        )
+        from ..models.get_schema_response_result import GetSchemaResponseResult
         from ..models.meta import Meta
 
         d = src_dict.copy()
-        result = GetFiltersListResponseResult.from_dict(d.pop("result"))
+        result = GetSchemaResponseResult.from_dict(d.pop("result"))
 
         meta = Meta.from_dict(d.pop("meta"))
 
-        get_filters_list_response = cls(
+        get_schema_response = cls(
             result=result,
             meta=meta,
         )
 
-        get_filters_list_response.additional_properties = d
-        return get_filters_list_response
+        get_schema_response.additional_properties = d
+        return get_schema_response
 
     @property
     def additional_keys(self) -> List[str]:

@@ -1,39 +1,29 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Type, TypeVar
+from typing import Any, Dict, List, Type, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-if TYPE_CHECKING:
-    from ..models.get_filters_list_response_result import GetFiltersListResponseResult
-    from ..models.meta import Meta
-
-
-T = TypeVar("T", bound="GetFiltersListResponse")
+T = TypeVar("T", bound="RetrieveResponseResponseNotYetAvailableResult")
 
 
 @_attrs_define
-class GetFiltersListResponse:
+class RetrieveResponseResponseNotYetAvailableResult:
     """
     Attributes:
-        result (GetFiltersListResponseResult):
-        meta (Meta):
+        message (str): The Survey Response is not yet available. Please try again later.
     """
 
-    result: "GetFiltersListResponseResult"
-    meta: "Meta"
+    message: str
     additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        result = self.result.to_dict()
-
-        meta = self.meta.to_dict()
+        message = self.message
 
         field_dict: Dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "result": result,
-                "meta": meta,
+                "message": message,
             }
         )
 
@@ -41,23 +31,15 @@ class GetFiltersListResponse:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        from ..models.get_filters_list_response_result import (
-            GetFiltersListResponseResult,
-        )
-        from ..models.meta import Meta
-
         d = src_dict.copy()
-        result = GetFiltersListResponseResult.from_dict(d.pop("result"))
+        message = d.pop("message")
 
-        meta = Meta.from_dict(d.pop("meta"))
-
-        get_filters_list_response = cls(
-            result=result,
-            meta=meta,
+        retrieve_response_response_not_yet_available_result = cls(
+            message=message,
         )
 
-        get_filters_list_response.additional_properties = d
-        return get_filters_list_response
+        retrieve_response_response_not_yet_available_result.additional_properties = d
+        return retrieve_response_response_not_yet_available_result
 
     @property
     def additional_keys(self) -> List[str]:

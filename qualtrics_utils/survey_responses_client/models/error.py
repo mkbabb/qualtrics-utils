@@ -1,39 +1,33 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Type, TypeVar
+from typing import Any, Dict, List, Type, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-if TYPE_CHECKING:
-    from ..models.get_filters_list_response_result import GetFiltersListResponseResult
-    from ..models.meta import Meta
-
-
-T = TypeVar("T", bound="GetFiltersListResponse")
+T = TypeVar("T", bound="Error")
 
 
 @_attrs_define
-class GetFiltersListResponse:
+class Error:
     """
     Attributes:
-        result (GetFiltersListResponseResult):
-        meta (Meta):
+        error_message (str): Detailed error message.
+        error_code (str): Unique error code of error.
     """
 
-    result: "GetFiltersListResponseResult"
-    meta: "Meta"
+    error_message: str
+    error_code: str
     additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        result = self.result.to_dict()
-
-        meta = self.meta.to_dict()
+        error_message = self.error_message
+        error_code = self.error_code
 
         field_dict: Dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "result": result,
-                "meta": meta,
+                "errorMessage": error_message,
+                "errorCode": error_code,
             }
         )
 
@@ -41,23 +35,18 @@ class GetFiltersListResponse:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        from ..models.get_filters_list_response_result import (
-            GetFiltersListResponseResult,
-        )
-        from ..models.meta import Meta
-
         d = src_dict.copy()
-        result = GetFiltersListResponseResult.from_dict(d.pop("result"))
+        error_message = d.pop("errorMessage")
 
-        meta = Meta.from_dict(d.pop("meta"))
+        error_code = d.pop("errorCode")
 
-        get_filters_list_response = cls(
-            result=result,
-            meta=meta,
+        error = cls(
+            error_message=error_message,
+            error_code=error_code,
         )
 
-        get_filters_list_response.additional_properties = d
-        return get_filters_list_response
+        error.additional_properties = d
+        return error
 
     @property
     def additional_keys(self) -> List[str]:

@@ -4,36 +4,32 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 if TYPE_CHECKING:
-    from ..models.get_filters_list_response_result import GetFiltersListResponseResult
-    from ..models.meta import Meta
+    from ..models.create_response_request_values import CreateResponseRequestValues
 
 
-T = TypeVar("T", bound="GetFiltersListResponse")
+T = TypeVar("T", bound="CreateResponseRequest")
 
 
 @_attrs_define
-class GetFiltersListResponse:
+class CreateResponseRequest:
     """
     Attributes:
-        result (GetFiltersListResponseResult):
-        meta (Meta):
+        values (CreateResponseRequestValues): `values` is a set of key-value pairs corresponding to question-answer
+            pairs. There can also be key-value pairs representing meta data for the response such as `startDate` or
+            `userLanguage`.
     """
 
-    result: "GetFiltersListResponseResult"
-    meta: "Meta"
+    values: "CreateResponseRequestValues"
     additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        result = self.result.to_dict()
-
-        meta = self.meta.to_dict()
+        values = self.values.to_dict()
 
         field_dict: Dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "result": result,
-                "meta": meta,
+                "values": values,
             }
         )
 
@@ -41,23 +37,17 @@ class GetFiltersListResponse:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        from ..models.get_filters_list_response_result import (
-            GetFiltersListResponseResult,
-        )
-        from ..models.meta import Meta
+        from ..models.create_response_request_values import CreateResponseRequestValues
 
         d = src_dict.copy()
-        result = GetFiltersListResponseResult.from_dict(d.pop("result"))
+        values = CreateResponseRequestValues.from_dict(d.pop("values"))
 
-        meta = Meta.from_dict(d.pop("meta"))
-
-        get_filters_list_response = cls(
-            result=result,
-            meta=meta,
+        create_response_request = cls(
+            values=values,
         )
 
-        get_filters_list_response.additional_properties = d
-        return get_filters_list_response
+        create_response_request.additional_properties = d
+        return create_response_request
 
     @property
     def additional_keys(self) -> List[str]:

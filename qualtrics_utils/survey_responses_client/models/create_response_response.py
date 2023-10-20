@@ -4,22 +4,22 @@ from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 if TYPE_CHECKING:
-    from ..models.get_filters_list_response_result import GetFiltersListResponseResult
+    from ..models.create_response_response_result import CreateResponseResponseResult
     from ..models.meta import Meta
 
 
-T = TypeVar("T", bound="GetFiltersListResponse")
+T = TypeVar("T", bound="CreateResponseResponse")
 
 
 @_attrs_define
-class GetFiltersListResponse:
+class CreateResponseResponse:
     """
     Attributes:
-        result (GetFiltersListResponseResult):
+        result (CreateResponseResponseResult):
         meta (Meta):
     """
 
-    result: "GetFiltersListResponseResult"
+    result: "CreateResponseResponseResult"
     meta: "Meta"
     additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -41,23 +41,23 @@ class GetFiltersListResponse:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        from ..models.get_filters_list_response_result import (
-            GetFiltersListResponseResult,
+        from ..models.create_response_response_result import (
+            CreateResponseResponseResult,
         )
         from ..models.meta import Meta
 
         d = src_dict.copy()
-        result = GetFiltersListResponseResult.from_dict(d.pop("result"))
+        result = CreateResponseResponseResult.from_dict(d.pop("result"))
 
         meta = Meta.from_dict(d.pop("meta"))
 
-        get_filters_list_response = cls(
+        create_response_response = cls(
             result=result,
             meta=meta,
         )
 
-        get_filters_list_response.additional_properties = d
-        return get_filters_list_response
+        create_response_response.additional_properties = d
+        return create_response_response
 
     @property
     def additional_keys(self) -> List[str]:
