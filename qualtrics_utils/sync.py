@@ -82,8 +82,10 @@ format_status_name = lambda survey_id: f"{survey_id}_status"
 
 def format_status_row(exported_file: ExportedFile[T]):
     return dict(
-        continuation_token=exported_file.continuation_token,
         file_id=exported_file.file_id,
+        timestamp=exported_file.timestamp,
+        last_response_id=exported_file.last_response_id,
+        continuation_token=exported_file.continuation_token,
     )
 
 
@@ -195,9 +197,9 @@ def sync_responses_sql(
     )
 
 
-def get_last_continuation_token_sheets(
+def get_last_status_sheets(
     survey_id: str, sheet_url: str, sheets: Sheets
-) -> str | None:
+) -> dict | None:
     sheet_name = format_status_name(survey_id)
 
     sheets.add(sheet_url, names=sheet_name)
@@ -206,11 +208,11 @@ def get_last_continuation_token_sheets(
         sheets=sheets, spreadsheet_id=sheet_url, sheet_name=sheet_name
     )
 
-    last_status = sheet[-1, ...].to_frame()
+    last_status = sheet[..., ...].to_frame()
     if last_status is None:
         return None
 
-    return last_status.iloc[0]["continuation_token"]
+    return last_status.iloc[-1].to_dict()
 
 
 def write_status_sheets(
@@ -246,7 +248,6 @@ def write_responses_sheets(
         range_name=sheet_name,
         values=values,
     )
-
     sheets.resize_columns(
         spreadsheet_id=sheet_url,
         sheet_name=sheet_name,

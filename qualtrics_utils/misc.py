@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
+from datetime import datetime
 
 HEADERS = {"X-API-TOKEN": "", "Content-Type": "application/json"}
 
@@ -16,5 +17,10 @@ T = TypeVar("T")
 class ExportedFile(Generic[T]):
     survey_id: str
     file_id: str
-    continuation_token: str
+
+    continuation_token: str | None
+    last_response_id: str | None
+
+    timestamp: datetime
+
     data: T
