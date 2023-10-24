@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import sqlalchemy
 from googleapiutils2 import Sheets, SheetsValueRange
+from loguru import logger
 from sqlalchemy import (
     Boolean,
     Column,
@@ -23,11 +24,10 @@ from qualtrics_utils.misc import ExportedFile, T
 from qualtrics_utils.survey import Surveys
 from qualtrics_utils.utils import (
     create_mysql_engine,
-    drop_if_exists,
     delete_sheet_if_exists,
+    drop_if_exists,
+    parse_file_id,
 )
-
-from loguru import logger
 
 Base = declarative_base()
 
@@ -225,8 +225,12 @@ def setup_sheets(
         )
 
         if restart:
-            delete_sheet_if_exists(sheet_name=responses_sheet_name, sheets=sheets)
-            delete_sheet_if_exists(sheet_name=status_sheet_name, sheets=sheets)
+            delete_sheet_if_exists(
+                sheet_name=responses_sheet_name, spreadsheet_id=sheet_url, sheets=sheets
+            )
+            delete_sheet_if_exists(
+                sheet_name=status_sheet_name, spreadsheet_id=sheet_url, sheets=sheets
+            )
 
         sheets.add(sheet_url, names=[responses_sheet_name, status_sheet_name])
 
@@ -287,6 +291,7 @@ def write_responses_sheets(
     def inner(exported_file: ExportedFile[pd.DataFrame]):
         df = exported_file.data
         survey_id = exported_file.survey_id
+
         responses_sheet_name = format_responses_name(
             survey_id=survey_id, table_name=sheet_name
         )
@@ -318,7 +323,6 @@ def _sync(
     responses_writer: Callable[[ExportedFile[pd.DataFrame]], None],
     setup_func: Callable[[ExportedFile[pd.DataFrame]], None],
     responses_post_processing_func: ResponsePostProcessingFunc = responses_post_processing_func_default,
-    *args: Any,
     **kwargs: Any,
 ):
     last_status = None
@@ -362,6 +366,8 @@ def sync_sql(
     response_post_processing_func: "ResponsePostProcessingFunc" = responses_post_processing_func_default,
     **kwargs: Any,
 ) -> None:
+    survey_id = parse_file_id(survey_id)
+
     """
     Syncs survey responses and status from a given survey source to a SQL database.
 
@@ -514,6 +520,7 @@ def main():
             sheet_name=table_name,
             sheet_url=responses_url,
             sheets=sheets,
+            restart=restart,
             **survey_args,
         )
     elif kind == "sql":
@@ -527,6 +534,7 @@ def main():
                 response_post_processing_func=post_processing_func,
                 conn=conn,
                 table_name=table_name,
+                restart=restart,
                 **survey_args,
             )
 

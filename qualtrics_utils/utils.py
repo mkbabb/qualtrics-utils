@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import re
+import urllib.parse
+from functools import cache
 from typing import *
 
 import pandas as pd
 import sqlalchemy
 from attr import asdict
+from googleapiutils2 import Sheets
 
 from qualtrics_utils.misc import T
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
-
-from googleapiutils2 import Sheets
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
@@ -36,6 +37,96 @@ def quote_value(value: str, quote: str = "`") -> str:
         return value
     else:
         return f"{quote}{value}{quote}"
+
+
+def get_url_params(url: str) -> dict[str, List[str]]:
+    """Get the components of the given URL."""
+    return urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+
+
+def get_id_from_url(
+    url: str, adjacent_options: list[str], query_param_options: list[str]
+) -> str:
+    """
+    Extracts the ID from the URL provided.
+
+    This function supports URLs of the form:
+    - '.../x/{id}/...' for x in adjacent_options
+    - With a query parameter named 'x': '...?x={x}...' for x in query_param_options
+
+    We prioritize the adjacent_options over the query_param_options, and short circuit therein if we find a match.
+
+    Args:
+        url (str): The URL string from which to extract the ID.
+    """
+    url_obj = urllib.parse.urlparse(url)
+    path = url_obj.path
+    paths = path.split("/")
+
+    get_adjacent = (
+        lambda x: paths[t_ix]
+        if x in paths and (t_ix := paths.index(x) + 1) < len(paths)
+        else None
+    )
+
+    for i in adjacent_options:
+        if (id := get_adjacent(i)) is not None:
+            return id
+
+    params = get_url_params(url)
+    for i in query_param_options:
+        if (ids := params.get(i)) is not None:
+            return ids[0]
+
+    raise ValueError(f"Could not parse file URL of {url}")
+
+
+ADJACENT_OPTIONS = ["form", "survey-builder"]
+QUERY_PARAM_OPTIONS = ["surveyId", "id"]
+
+
+@cache
+def parse_file_id(
+    file_id: str,
+    adjacent_options: list[str] = ADJACENT_OPTIONS,
+    query_param_options: list[str] = QUERY_PARAM_OPTIONS,
+) -> str:
+    """
+    Parse the given file_id which could be an ID string, URL string or a dictionary object.
+
+    This function supports the following formats:
+    - Direct ID string: '123456789'
+    - URL formats supported by 'get_id_from_url' function.
+    - Dictionary object with 'id' or 'surveyId' as keys.
+
+    Args:
+        file_id (str): The ID string or URL or dictionary from which to extract the ID.
+    """
+
+    def parse(file_id: str) -> str:
+        if "http" in file_id:
+            return get_id_from_url(
+                file_id,
+                adjacent_options=adjacent_options,
+                query_param_options=query_param_options,
+            )
+        else:
+            return file_id
+
+    def obj_to_id(file: str) -> str:
+        if isinstance(file, str):
+            return file
+        elif isinstance(file, dict):
+            for i in query_param_options:
+                if (id := file.get(i)) is not None:
+                    return id
+
+        return None
+
+    if (id := obj_to_id(file_id)) is not None:
+        return parse(id)
+    else:
+        return file_id
 
 
 def reset_request_defaults(request: T, set_items: dict[str, Any]) -> T:
@@ -147,6 +238,6 @@ def drop_if_exists(table_name: str, conn: sqlalchemy.Connection):
         table.drop(conn)
 
 
-def delete_sheet_if_exists(sheet_name: str, sheets: Sheets):
-    if sheets.has(name=sheet_name):
-        sheets.delete(name=sheet_name)
+def delete_sheet_if_exists(sheet_name: str, spreadsheet_id: str, sheets: Sheets):
+    if sheets.has(name=sheet_name, spreadsheet_id=spreadsheet_id):
+        sheets.delete(name=sheet_name, spreadsheet_id=spreadsheet_id)

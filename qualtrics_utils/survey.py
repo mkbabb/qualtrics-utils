@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime
 import urllib.parse
 import zipfile
-from http import HTTPStatus
 from io import BytesIO
 from typing import IO, Any, Optional
 from zipfile import ZipFile
@@ -23,12 +22,10 @@ from qualtrics_utils.surveys_response_import_export_api_client.client import (
 from qualtrics_utils.surveys_response_import_export_api_client.models import (
     ExportCreationRequest,
     ExportCreationRequestFormat,
-    ExportStatusResponse,
-    ExportStatusResponseResult,
     RequestStatus,
 )
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
-from qualtrics_utils.utils import reset_request_defaults
+from qualtrics_utils.utils import parse_file_id, reset_request_defaults
 
 # The first two rows of the CSV are Qualtrics metadata.
 SKIP_ROWS = [1, 2]
@@ -87,7 +84,9 @@ class Surveys:
             export_responses_in_progress=export_responses_in_progress,
             end_date=end_date if end_date is not None else UNSET,
             start_date=start_date if start_date is not None else UNSET,
-            continuation_token=continuation_token if continuation_token is not None else UNSET,
+            continuation_token=continuation_token
+            if continuation_token is not None
+            else UNSET,
             **kwargs,
         )
         payload = ExportCreationRequest(**kwargs)
@@ -152,6 +151,7 @@ class Surveys:
             continuation_token (Optional[str], optional): The continuation token for the response export. Defaults to None.
             last_response_id (Optional[str], optional): The responseId of the last response to export. Defaults to None.
         """
+        survey_id = parse_file_id(survey_id)
 
         start_date = (
             self._response_id_to_date(survey_id=survey_id, response_id=last_response_id)
@@ -194,6 +194,8 @@ class Surveys:
             survey_id (str): The survey_id of the survey to get the response from.
             response_id (str): The response_id of the response to get.
         """
+        survey_id = parse_file_id(survey_id)
+
         response_url = self._make_api_url(
             "surveys/{survey_id}/responses/{response_id}",
             survey_id=survey_id,
@@ -247,6 +249,7 @@ class Surveys:
             filter_preview (bool, optional): Whether to filter out Survey Preview responses. Defaults to True.
             parse_dates (list[str], optional): List of columns to parse as dates. Defaults to ["StartDate", "EndDate"].
         """
+        survey_id = parse_file_id(survey_id)
 
         raw_data = self.get_responses(
             survey_id=survey_id,
@@ -309,6 +312,7 @@ class Surveys:
         Args:
             survey_id (str): The survey_id of the survey to get the schema from.
         """
+        survey_id = parse_file_id(survey_id)
         schema_url = self._make_api_url("{survey_id}", survey_id=survey_id)
         r = requests.get(schema_url, headers=HEADERS)
         r.raise_for_status()
