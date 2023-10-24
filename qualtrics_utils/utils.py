@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from typing import *
 
@@ -7,6 +9,8 @@ from attr import asdict
 
 from qualtrics_utils.misc import T
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
+
+from googleapiutils2 import Sheets
 
 RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
@@ -133,3 +137,16 @@ def create_mysql_engine(
     engine_str = f"mysql+pymysql://{username}:{password}@{host}:{port}/{database}"
     engine = sqlalchemy.create_engine(engine_str)
     return engine
+
+
+def drop_if_exists(table_name: str, conn: sqlalchemy.Connection):
+    metadata = sqlalchemy.MetaData()
+    table = sqlalchemy.Table(table_name, metadata)
+
+    if conn.dialect.has_table(conn, table_name):
+        table.drop(conn)
+
+
+def delete_sheet_if_exists(sheet_name: str, sheets: Sheets):
+    if sheets.has(name=sheet_name):
+        sheets.delete(name=sheet_name)

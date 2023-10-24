@@ -8,7 +8,6 @@ from io import BytesIO
 from typing import IO, Any, Optional
 from zipfile import ZipFile
 
-import loguru
 import pandas as pd
 import requests
 
@@ -31,7 +30,11 @@ from qualtrics_utils.surveys_response_import_export_api_client.models import (
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
 from qualtrics_utils.utils import reset_request_defaults
 
+# The first two rows of the CSV are Qualtrics metadata.
 SKIP_ROWS = [1, 2]
+
+# These columns are parsed as dates.
+PARSE_DATES = ["StartDate", "EndDate"]
 
 
 class Surveys:
@@ -77,14 +80,14 @@ class Surveys:
             breakout_sets=True,
             seen_unanswered_recode=-1,
             multiselect_seen_unanswered_recode=-1,
-            allow_continuation=True,
+            allow_continuation=not export_responses_in_progress,
             sort_by_last_modified_date=False,
             include_label_columns=not use_labels,
             compress=True,
             export_responses_in_progress=export_responses_in_progress,
             end_date=end_date if end_date is not None else UNSET,
             start_date=start_date if start_date is not None else UNSET,
-            continuation_token=continuation_token if continuation_token else UNSET,
+            continuation_token=continuation_token if continuation_token is not None else UNSET,
             **kwargs,
         )
         payload = ExportCreationRequest(**kwargs)
@@ -134,10 +137,10 @@ class Surveys:
         **kwargs: Any,
     ) -> ExportedFile[bytes]:
         """Get responses from a survey by survey_id.
-        Outputs a file-like object, primarily containing bytes data in the format specified.
+        Outputs a zipped file, in bytes, in the format specified by `format`.
 
-        If a last_response_id is provided, the export will continue from the response after the last_response_id.
-        If a continuation_token is provided, the export will continue from where it left off. The continuation_token **cannot** be older than 1 week.
+        If a `last_response_id` is provided, the export will continue from the response after the last_response_id.
+        If a `continuation_token` is provided, the export will continue from where it left off. The continuation_token **cannot** be older than 1 week.
 
         Args:
             survey_id (str): The survey_id of the survey to get responses from.
@@ -219,7 +222,7 @@ class Surveys:
         continuation_token: Optional[str] = None,
         last_response_id: Optional[str] = None,
         filter_preview: bool = True,
-        parse_dates: list[str] = ["StartDate", "EndDate"],
+        parse_dates: list[str] = PARSE_DATES,
         **kwargs: Any,
     ) -> ExportedFile[pd.DataFrame]:
         """Get responses from a survey by survey_id.
@@ -231,7 +234,7 @@ class Surveys:
         If a last_response_id is provided, the export will continue from the response after the last_response_id.
         If a continuation_token is provided, the export will continue from where it left off. The continuation_token **cannot** be older than 1 week.
 
-        Additional arguments are passed to `get_responses`.
+        Additional keyword arguments are passed to `get_responses`, see the ExportCreationRequest model for more details.
 
         Args:
             survey_id (str): The survey_id of the survey to get responses from.
@@ -243,7 +246,6 @@ class Surveys:
             last_response_id (Optional[str], optional): The responseId of the last response to export. Defaults to None.
             filter_preview (bool, optional): Whether to filter out Survey Preview responses. Defaults to True.
             parse_dates (list[str], optional): List of columns to parse as dates. Defaults to ["StartDate", "EndDate"].
-
         """
 
         raw_data = self.get_responses(
@@ -269,7 +271,7 @@ class Surveys:
                 new_df.set_index("ResponseId", inplace=True)
 
                 # If the last response is the same as the last response from the previous export, drop it.
-                if new_df.index[0] == last_response_id:
+                if not new_df.empty and new_df.index[0] == last_response_id:
                     new_df.drop(new_df.index[0], inplace=True)
                 # Sort by StartDate
                 new_df.sort_values("StartDate", inplace=True)
@@ -301,7 +303,7 @@ class Surveys:
                     timestamp=datetime.datetime.now(),
                 )
 
-    def get_survey_schema(self, survey_id: str) -> dict[str, Any] | None:
+    def get_survey_schema(self, survey_id: str) -> dict[str, Any]:
         """Get the schema of a survey by survey_id.
 
         Args:
@@ -309,8 +311,5 @@ class Surveys:
         """
         schema_url = self._make_api_url("{survey_id}", survey_id=survey_id)
         r = requests.get(schema_url, headers=HEADERS)
-
-        if r.status_code != HTTPStatus.OK:
-            return None
-        else:
-            return r.json()
+        r.raise_for_status()
+        return r.json()

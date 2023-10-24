@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
 from datetime import datetime

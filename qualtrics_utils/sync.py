@@ -1,4 +1,5 @@
-from enum import Enum
+from __future__ import annotations
+
 from typing import Any, Callable
 
 import numpy as np
@@ -20,16 +21,18 @@ from sqlalchemy.orm import declarative_base
 
 from qualtrics_utils.misc import ExportedFile, T
 from qualtrics_utils.survey import Surveys
+from qualtrics_utils.utils import (
+    create_mysql_engine,
+    drop_if_exists,
+    delete_sheet_if_exists,
+)
+
+from loguru import logger
 
 Base = declarative_base()
 
 
-class SyncType(Enum):
-    SQL = "sql"
-    SHEETS = "sheets"
-
-
-def pd_dtype_to_sqlalchemy(dtype: np.dtype):
+def pd_dkindto_sqlalchemy(dtype: np.dtype):
     if np.issubdtype(dtype, np.integer):
         return Integer
     elif np.issubdtype(dtype, np.floating):
@@ -54,12 +57,20 @@ def generate_sql_schema(
     index_as_pk: bool = False,
     auto_increment: bool = True,
 ):
+    """Generate a SQLAlchemy table schema from a Pandas DataFrame.
+
+    Args:
+        df (pd.DataFrame): The DataFrame from which to generate the schema.
+        table_name (str): The name of the table.
+        index_as_pk (bool, optional): Whether to use the index as the primary key. Defaults to False.
+        auto_increment (bool, optional): Whether to use autoincrement for the primary key. Defaults to True.
+    """
     metadata = MetaData()
     columns: list[Column] = [
-        Column(name, pd_dtype_to_sqlalchemy(dtype)) for name, dtype in df.dtypes.items()
+        Column(name, pd_dkindto_sqlalchemy(dtype)) for name, dtype in df.dtypes.items()
     ]
     columns = [
-        Column(name, pd_dtype_to_sqlalchemy(dtype), primary_key=index_as_pk)
+        Column(name, pd_dkindto_sqlalchemy(dtype), primary_key=index_as_pk)
         for name, dtype in df.index.to_frame().dtypes.items()
     ] + columns
 
@@ -82,7 +93,13 @@ def get_status_table(table_name: str):
     )
 
 
-format_status_name = lambda survey_id: f"{survey_id}_status"
+def format_status_name(survey_id: str, table_name: str | None):
+    t_table_name = table_name if table_name is not None else survey_id
+    return f"{t_table_name}_status"
+
+
+def format_responses_name(survey_id: str, table_name: str | None):
+    return table_name if table_name is not None else f"{survey_id}_responses"
 
 
 def format_status_row(exported_file: ExportedFile[T]):
@@ -94,19 +111,72 @@ def format_status_row(exported_file: ExportedFile[T]):
     )
 
 
+def setup_sql(
+    table_name: str | None, conn: sqlalchemy.Connection, restart: bool = False
+):
+    def inner(exported_file: ExportedFile[pd.DataFrame]):
+        survey_id = exported_file.survey_id
+        df = exported_file.data
+
+        responses_table_name = format_responses_name(
+            survey_id=survey_id, table_name=table_name
+        )
+        status_table_name = format_status_name(
+            survey_id=survey_id, table_name=table_name
+        )
+
+        if restart:
+            drop_if_exists(table_name=responses_table_name, conn=conn)
+            drop_if_exists(table_name=status_table_name, conn=conn)
+
+        responses_table = generate_sql_schema(
+            df=df, table_name=responses_table_name, index_as_pk=True
+        )
+        responses_table.create(conn)
+
+        status_table = get_status_table(table_name=status_table_name)
+        status_table.create(conn)
+
+        conn.commit()
+
+    return inner
+
+
+def get_last_status_sql(table_name: str | None, conn: sqlalchemy.Connection):
+    def inner(survey_id: str):
+        metadata = MetaData()
+
+        status_table_name = format_status_name(
+            survey_id=survey_id, table_name=table_name
+        )
+
+        status_table = Table(status_table_name, metadata, autoload_with=conn)
+
+        query = status_table.select().order_by(status_table.c.id.desc()).limit(1)
+
+        if (row := conn.execute(query).fetchone()) is not None:
+            return row._asdict()
+
+    return inner
+
+
 def write_status_sql(
+    table_name: str | None,
     conn: sqlalchemy.Connection,
 ):
     def inner(
         exported_file: ExportedFile[T],
     ):
-        table_name = format_status_name(exported_file.survey_id)
-
+        survey_id = exported_file.survey_id
         metadata = MetaData()
-        table = Table(table_name, metadata, autoload_with=conn)
+
+        status_table_name = format_status_name(
+            survey_id=survey_id, table_name=table_name
+        )
+        status_table = Table(status_table_name, metadata, autoload_with=conn)
 
         conn.execute(
-            table.insert().values(
+            status_table.insert().values(
                 **format_status_row(exported_file),
             )
         )
@@ -115,63 +185,71 @@ def write_status_sql(
     return inner
 
 
-def get_last_status_sql(conn: sqlalchemy.Connection):
-    def inner(survey_id: str):
-        table_name = format_status_name(survey_id)
-
-        table = None
-        if not conn.dialect.has_table(conn, table_name):
-            table = get_status_table(table_name=table_name)
-            table.create(conn)
-        else:
-            metadata = MetaData()
-            table = Table(table_name, metadata, autoload_with=conn)
-
-        query = table.select().order_by(table.c.id.desc()).limit(1)
-
-        if (row := conn.execute(query).fetchone()) is not None:
-            return row._asdict()
-
-    return inner
-
-
 def write_responses_sql(
-    table_name: str,
+    table_name: str | None,
     conn: sqlalchemy.Connection,
 ):
     def inner(
         exported_file: ExportedFile[pd.DataFrame],
     ):
-        if not conn.dialect.has_table(conn, table_name):
-            table = generate_sql_schema(exported_file.data, table_name)
-            table.create(conn)
+        df = exported_file.data
 
-        responses_df = exported_file.data
-        responses_df.to_sql(
+        df.to_sql(
             table_name,
             conn,
             if_exists="append",
             index=True,
-            index_label="ResponseId",
+            index_label=df.index.name,
         )
         conn.commit()
 
     return inner
 
 
-def get_last_status_sheets(sheet_url: str, sheets: Sheets):
+def setup_sheets(
+    sheet_name: str | None,
+    sheet_url: str,
+    sheets: Sheets,
+    restart: bool = False,
+):
+    def inner(
+        exported_file: ExportedFile[pd.DataFrame],
+    ):
+        survey_id = exported_file.survey_id
+
+        responses_sheet_name = format_responses_name(
+            survey_id=survey_id, table_name=sheet_name
+        )
+        status_sheet_name = format_status_name(
+            survey_id=survey_id, table_name=sheet_name
+        )
+
+        if restart:
+            delete_sheet_if_exists(sheet_name=responses_sheet_name, sheets=sheets)
+            delete_sheet_if_exists(sheet_name=status_sheet_name, sheets=sheets)
+
+        sheets.add(sheet_url, names=[responses_sheet_name, status_sheet_name])
+
+    return inner
+
+
+def get_last_status_sheets(
+    sheet_name: str | None,
+    sheet_url: str,
+    sheets: Sheets,
+):
     def inner(
         survey_id: str,
     ):
-        sheet_name = format_status_name(survey_id)
-
-        sheets.add(sheet_url, names=sheet_name)
-
-        sheet = SheetsValueRange(
-            sheets=sheets, spreadsheet_id=sheet_url, sheet_name=sheet_name
+        status_sheet_name = format_status_name(
+            survey_id=survey_id, table_name=sheet_name
         )
 
-        last_status = sheet[..., ...].to_frame()
+        status_sheet = SheetsValueRange(
+            sheets=sheets, spreadsheet_id=sheet_url, sheet_name=status_sheet_name
+        )
+
+        last_status = status_sheet[..., ...].to_frame()
         if last_status is None or last_status.empty:
             return None
 
@@ -181,16 +259,20 @@ def get_last_status_sheets(sheet_url: str, sheets: Sheets):
 
 
 def write_status_sheets(
+    sheet_name: str | None,
     sheet_url: str,
     sheets: Sheets,
 ):
     def inner(exported_file: ExportedFile[T]):
-        sheet_name = format_status_name(exported_file.survey_id)
+        survey_id = exported_file.survey_id
+        status_sheet_name = format_status_name(
+            survey_id=survey_id, table_name=sheet_name
+        )
 
         row = format_status_row(exported_file)
         return sheets.append(
             spreadsheet_id=sheet_url,
-            range_name=sheet_name,
+            range_name=status_sheet_name,
             values=[row],
         )
 
@@ -198,21 +280,25 @@ def write_status_sheets(
 
 
 def write_responses_sheets(
-    sheet_name: str,
+    sheet_name: str | None,
     sheet_url: str,
     sheets: Sheets,
 ):
     def inner(exported_file: ExportedFile[pd.DataFrame]):
-        responses_df = exported_file.data
+        df = exported_file.data
+        survey_id = exported_file.survey_id
+        responses_sheet_name = format_responses_name(
+            survey_id=survey_id, table_name=sheet_name
+        )
 
-        values = sheets.from_frame(responses_df.reset_index(drop=False), as_dict=True)
+        values = sheets.from_frame(df.reset_index(drop=False), as_dict=True)
 
         if len(values) == 0:
             return
 
         sheets.append(
             spreadsheet_id=sheet_url,
-            range_name=sheet_name,
+            range_name=responses_sheet_name,
             values=values,
         )
 
@@ -224,19 +310,25 @@ ResponsePostProcessingFunc = Callable[[pd.DataFrame], pd.DataFrame]
 responses_post_processing_func_default: ResponsePostProcessingFunc = lambda x: x
 
 
-def sync_internal(
+def _sync(
     survey_id: str,
     surveys: Surveys,
     status_reader: Callable[[str], dict | None],
     status_writer: Callable[[ExportedFile[T]], None],
     responses_writer: Callable[[ExportedFile[pd.DataFrame]], None],
+    setup_func: Callable[[ExportedFile[pd.DataFrame]], None],
     responses_post_processing_func: ResponsePostProcessingFunc = responses_post_processing_func_default,
     *args: Any,
     **kwargs: Any,
 ):
-    last_status = status_reader(
-        survey_id,
-    )
+    last_status = None
+    try:
+        last_status = status_reader(
+            survey_id,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to read last status: {e}")
+
     last_response_id = (
         last_status["last_response_id"] if last_status is not None else None
     )
@@ -250,36 +342,38 @@ def sync_internal(
         survey_id=survey_id,
         last_response_id=last_response_id,
         continuation_token=continuation_token,
-        *args,
         **kwargs,
-    )  # type: ignore
+    )
     exported_file.data = responses_post_processing_func(exported_file.data)
+
+    setup_func(exported_file)
 
     responses_writer(exported_file)
 
     status_writer(exported_file)
 
 
-def sync(
+def sync_sql(
     survey_id: str,
     surveys: Surveys,
-    sync_type: SyncType = SyncType.SQL,
-    response_post_processing_func: ResponsePostProcessingFunc = responses_post_processing_func_default,
-    *args: Any,
+    conn: sqlalchemy.Connection,
+    table_name: str | None = None,
+    restart: bool = False,
+    response_post_processing_func: "ResponsePostProcessingFunc" = responses_post_processing_func_default,
     **kwargs: Any,
-):
-    """Synchronizes survey responses and status from a given survey source to a target, which can be either a SQL database or Google Sheets.
+) -> None:
+    """
+    Syncs survey responses and status from a given survey source to a SQL database.
 
-    If the target is a SQL database, the following keyword arguments are required:
-        - conn (sqlalchemy.Connection): A connection to the target database.
-        - table_name (str): The name of the table where the survey responses will be stored.
+    This requires two tables to be present in the target database:
+        - A table to store the survey responses.
+        - A table to store the last status of the survey.
 
-    If the target is Google Sheets, the following keyword arguments are required:
-        - sheets (Sheets): An instance of the Sheets class for Google Sheets interaction.
-        - sheet_url (str): The URL of the spreadsheet where the survey responses will be stored.
-        - sheet_name (str): The name of the sheet where the survey responses will be stored.
+    These will be automatically created if they do not exist:
+        - If a table name is provided, the responses table will be named as such, and the status table will be named as {table_name}_status.
+        - If a table name is not provided, the responses table will be named as {survey_id}_responses and the status table will be named as {survey_id}_status.
 
-    For every target, the syncing process takes places as thus:
+    The process is as thus:
         1. The last status of the survey is retrieved from the target.
             1a. If the survey has never been synced, the last status is None.
             1b. If the last status is found, then the last response ID and continuation token are retrieved.
@@ -287,72 +381,72 @@ def sync(
         3. The retrieved survey responses are post-processed using the response_post_processing_func function.
         4. The post-processed survey responses are written to the target.
         5. The last status is written to the target.
-
-    This requires that the target has two "tables", one for the survey responses and one for the survey status.
-
-    Args:
-        - survey_id (str): The ID of the survey to be synchronized.
-        - surveys (Surveys): An instance of the Surveys class for survey data interaction.
-        - sync_type (SyncType, optional): The type of the target where the data will be synchronized. Defaults to SyncType.SQL.
-        - response_post_processing_func (Callable, optional): A function to post-process the retrieved survey responses. Defaults to a no-op.
-        - *args (Any): Additional positional arguments for internal methods.
-        - **kwargs (Any): Additional keyword arguments for internal methods.
     """
-    if sync_type == SyncType.SQL:
-        conn, table_name = kwargs.pop("conn"), kwargs.pop("table_name")
+    _sync(
+        survey_id=survey_id,
+        surveys=surveys,
+        status_reader=get_last_status_sql(table_name=table_name, conn=conn),
+        status_writer=write_status_sql(table_name=table_name, conn=conn),
+        responses_writer=write_responses_sql(table_name=table_name, conn=conn),
+        setup_func=setup_sql(table_name=table_name, conn=conn, restart=restart),
+        responses_post_processing_func=response_post_processing_func,
+        **kwargs,
+    )
 
-        sync_internal(
-            survey_id=survey_id,
-            surveys=surveys,
-            status_reader=get_last_status_sql(
-                conn=conn,
-            ),
-            status_writer=write_status_sql(
-                conn=conn,
-            ),
-            responses_writer=write_responses_sql(
-                table_name=table_name,
-                conn=conn,
-            ),
-            responses_post_processing_func=response_post_processing_func,
-            *args,
-            **kwargs,
-        )  # type: ignore
 
-    elif sync_type == SyncType.SHEETS:
-        sheets, sheet_url, sheet_name = (
-            kwargs.pop("sheets"),
-            kwargs.pop("sheet_url"),
-            kwargs.pop("sheet_name"),
-        )
-        sync_internal(
-            survey_id=survey_id,
-            surveys=surveys,
-            status_reader=get_last_status_sheets(
-                sheet_url=sheet_url,
-                sheets=sheets,
-            ),
-            status_writer=write_status_sheets(
-                sheet_url=sheet_url,
-                sheets=sheets,
-            ),
-            responses_writer=write_responses_sheets(
-                sheet_name=sheet_name,
-                sheet_url=sheet_url,
-                sheets=sheets,
-            ),
-            responses_post_processing_func=response_post_processing_func,
-            *args,
-            **kwargs,
-        )  # type: ignore
+def sync_sheets(
+    survey_id: str,
+    surveys: Surveys,
+    sheets: Sheets,
+    sheet_url: str,
+    sheet_name: str | None = None,
+    restart: bool = False,
+    response_post_processing_func: "ResponsePostProcessingFunc" = responses_post_processing_func_default,
+    **kwargs: Any,
+) -> None:
+    """Syncs survey responses and status from a given survey source to a Google Sheet.
+
+    This requires two tables to be present in the target database:
+        - A table to store the survey responses.
+        - A table to store the last status of the survey.
+
+    These will be automatically created if they do not exist:
+        - If a table name is provided, the responses table will be named as such, and the status table will be named as {table_name}_status.
+        - If a table name is not provided, the responses table will be named as {survey_id}_responses and the status table will be named as {survey_id}_status.
+
+    The process is as thus:
+        1. The last status of the survey is retrieved from the target.
+            1a. If the survey has never been synced, the last status is None.
+            1b. If the last status is found, then the last response ID and continuation token are retrieved.
+        2. The survey responses are retrieved from the survey source, starting from the last response ID if possible, and the continuation token if possible.
+        3. The retrieved survey responses are post-processed using the response_post_processing_func function.
+        4. The post-processed survey responses are written to the target.
+        5. The last status is written to the target."""
+    _sync(
+        survey_id=survey_id,
+        surveys=surveys,
+        status_reader=get_last_status_sheets(
+            sheet_name=sheet_name, sheet_url=sheet_url, sheets=sheets
+        ),
+        status_writer=write_status_sheets(
+            sheet_name=sheet_name, sheet_url=sheet_url, sheets=sheets
+        ),
+        responses_writer=write_responses_sheets(
+            sheet_name=sheet_name, sheet_url=sheet_url, sheets=sheets
+        ),
+        setup_func=setup_sheets(
+            sheet_name=sheet_name, sheet_url=sheet_url, sheets=sheets, restart=restart
+        ),
+        responses_post_processing_func=response_post_processing_func,
+        **kwargs,
+    )
 
 
 def main():
-    import json
     import pathlib
+    import tomllib
     from argparse import ArgumentParser
 
-    import pandas as pd
     from googleapiutils2 import Sheets, get_oauth2_creds
 
     from qualtrics_utils import (
@@ -368,20 +462,20 @@ def main():
         "--config",
         type=pathlib.Path,
         required=False,
-        default=pathlib.Path("auth/config.json"),
+        default=pathlib.Path("auth/config.toml"),
     )
-
     parser.add_argument("--verbose", action="store_true")
-
-    parser.add_argument("--table-name", type=str, default="Sheet1")
-
+    parser.add_argument("--restart", action="store_true")
+    parser.add_argument("--table-name", required=False)
     parser.add_argument(
-        "--sync-type", type=SyncType, required=False, default=SyncType.SQL
+        "--kind",
+        choices=["sheets", "sql"],
+        required=True,
     )
 
     args = parser.parse_args()
 
-    config = json.loads(args.config.read_text())
+    config = tomllib.loads(args.config.read_text())
 
     qualtrics_api_token = config["qualtrics"]["api_token"]
     codebook_path = pathlib.Path(config["qualtrics"]["codebook_path"])
@@ -390,11 +484,15 @@ def main():
 
     survey_id = config["qualtrics"]["survey_id"]
 
-    sync_type: SyncType = args.sync_type  # type: ignore
+    kind = args.kind
     table_name = args.table_name
     verbose = args.verbose
+    restart = args.restart
 
     survey_args = config["qualtrics"]["survey_args"]
+    for k, v in survey_args.items():
+        if isinstance(v, str) and "date" in k.lower():
+            survey_args[k] = pd.to_datetime(v)
 
     def post_processing_func(df: pd.DataFrame):
         codebook = generate_codebook(codebook_path)
@@ -403,38 +501,32 @@ def main():
 
         return tmp
 
-    if sync_type == SyncType.SHEETS:
+    if kind == "sheets":
         responses_url = config["google"]["urls"]["responses"]
 
         creds = get_oauth2_creds(config["google"]["credentials_path"])
         sheets = Sheets(creds=creds)
 
-        sync(
+        sync_sheets(
             survey_id=survey_id,
             surveys=surveys,
-            sync_type=sync_type,
             response_post_processing_func=post_processing_func,
-            #
             sheet_name=table_name,
             sheet_url=responses_url,
             sheets=sheets,
-            #
             **survey_args,
         )
-    elif sync_type == SyncType.SQL:
+    elif kind == "sql":
         engine = create_mysql_engine(
             **config["mysql"],
         )
         with engine.connect() as conn:
-            sync(
+            sync_sql(
                 survey_id=survey_id,
                 surveys=surveys,
-                sync_type=sync_type,
                 response_post_processing_func=post_processing_func,
-                #
                 conn=conn,
                 table_name=table_name,
-                #
                 **survey_args,
             )
 
