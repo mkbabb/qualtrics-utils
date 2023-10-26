@@ -1,29 +1,30 @@
 [tool.poetry]
 name = "qualtrics-utils"
-version = "0.5.8"
+version = "0.6.0"
 description = "Utilities for qualtrics surveys."
 authors = ["Mike Babb <mike7400@gmail.com>"]
+
 readme = "README.md"
-keywords = ["qualtrics"]
+keywords = ["qualtrics", "qualtrics-api", "qualtrics-util"]
 license = "MIT"
 repository = "https://github.com/mkbabb/qualtrics-utils"
 
 
 [tool.poetry.dependencies]
-python = "^3.11"
-pandas = "^2.0.3"
+python = ">=3.10,<3.13"
+pandas = "^2.1.1"
 requests = "^2.31.0"
-sqlalchemy = "^2.0.20"
-numpy = "^1.25.2"
+sqlalchemy = "^2.0.22"
+numpy = "^1.26.1"
 googleapiutils2 = "^0.11.1"
 loguru = "^0.7.2"
 
 [tool.poetry.group.dev.dependencies]
 openapi-python-client = "^0.15.1"
-mypy = "^1.5.1"
-black = "^23.7.0"
-types-requests = "^2.31.0.2"
-pytest = "^7.4.0"
+mypy = "^1.6.1"
+black = "^23.10.1"
+types-requests = "^2.31.0.10"
+pytest = "^7.4.3"
 pymysql = "^1.1.0"
 
 [build-system]
