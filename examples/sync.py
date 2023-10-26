@@ -11,7 +11,7 @@ from qualtrics_utils import (
 )
 from googleapiutils2 import Sheets, get_oauth2_creds
 
-from qualtrics_utils.sync import sync, SyncType
+from qualtrics_utils.sync import sync_sheets, sync_sql
 from qualtrics_utils.utils import create_mysql_engine
 
 

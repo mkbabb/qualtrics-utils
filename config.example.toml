@@ -1,0 +1,23 @@
+[mysql]
+host = ""
+port = ""
+database = ""
+username = ""
+password = ""
+
+[google]
+credentials_path = ""
+[google.urls]
+responses = ""
+
+[qualtrics]
+api_token = ""
+# Can either be the survey ID or the survey URL
+survey_id = ""
+# QSF file path
+codebook_path = ""
+
+[qualtrics.survey_args]
+# See https://api.qualtrics.com/reference#create-response-export for more information
+start_date = 2021-01-01T00:00:00Z
+use_labels = true

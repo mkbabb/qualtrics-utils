@@ -188,6 +188,28 @@ def coalesce_multiselect(
     delimiter: str = ", ",
     use_multiple: bool = True,
 ) -> pd.DataFrame:
+    """Coalesce a multi-select column into a single column.
+
+    For example, if we have a multi-select question with the following options:
+        - Option 1
+        - Option 2
+        - Option 3
+
+    These will be typically split into individual columns, with each cell potentially being a non-null value.
+    In many case, a multi-select question will have one response, and the rest will be null.
+
+    This function will coalesce all the non-null values into a single column.
+    If multiple values are present, then the values will be handled as follows:
+        - If use_multiple is True, then the value will be set to "Multiple"
+        - If use_multiple is False, then then value will be the concatenation of the values, separated by the `delimiter`.
+
+    Args:
+        - df (pd.DataFrame): The DataFrame to coalesce.
+        - codebook (list[dict[str, Any]]): The codebook for the survey.
+        - delimiter (str): The delimiter to use when joining multiple values.
+        - use_multiple (bool): Whether to use the "Multiple" string when multiple values are present.
+    """
+
     def join(x: pd.Series) -> str:
         l = x.dropna().tolist()
 

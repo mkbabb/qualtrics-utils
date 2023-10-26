@@ -471,14 +471,28 @@ def main():
         type=pathlib.Path,
         required=False,
         default=pathlib.Path("auth/config.toml"),
+        help="Path to the config file. See the config.example.toml for more information.",
     )
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--restart", action="store_true")
-    parser.add_argument("--table-name", required=False)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Synced column names will be the verbose names from the codebook (if provided)",
+    )
+    parser.add_argument(
+        "--restart",
+        action="store_true",
+        help="Restart the sync from the beginning of the survey.",
+    )
+    parser.add_argument(
+        "--table-name",
+        required=False,
+        help="Base table name for the survey. If not provided, the survey ID will be used.",
+    )
     parser.add_argument(
         "--kind",
         choices=["sheets", "sql"],
         required=True,
+        help="The kind of sync to perform. Either 'sheets' or 'sql' (mysql only for now).",
     )
 
     args = parser.parse_args()
