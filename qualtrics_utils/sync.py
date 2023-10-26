@@ -325,6 +325,8 @@ def _sync(
     responses_post_processing_func: ResponsePostProcessingFunc = responses_post_processing_func_default,
     **kwargs: Any,
 ):
+    survey_id = parse_file_id(survey_id)
+
     last_status = None
     try:
         last_status = status_reader(

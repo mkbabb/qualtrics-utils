@@ -9,6 +9,7 @@ import pandas as pd
 import sqlalchemy
 from attr import asdict
 from googleapiutils2 import Sheets
+from loguru import logger
 
 from qualtrics_utils.misc import T
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
@@ -239,5 +240,11 @@ def drop_if_exists(table_name: str, conn: sqlalchemy.Connection):
 
 
 def delete_sheet_if_exists(sheet_name: str, spreadsheet_id: str, sheets: Sheets):
-    if sheets.has(name=sheet_name, spreadsheet_id=spreadsheet_id):
-        sheets.delete(name=sheet_name, spreadsheet_id=spreadsheet_id)
+    try:
+        if sheets.has(name=sheet_name, spreadsheet_id=spreadsheet_id):
+            sheets.delete(name=sheet_name, spreadsheet_id=spreadsheet_id)
+    except Exception as e:
+        logger.error(f"Error deleting sheet {sheet_name} from {spreadsheet_id}: {e}")
+        pass
+
+    return
