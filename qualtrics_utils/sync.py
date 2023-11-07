@@ -17,6 +17,7 @@ from sqlalchemy import (
     Table,
     Text,
     func,
+    VARCHAR,
 )
 from sqlalchemy.orm import declarative_base
 
@@ -32,7 +33,7 @@ from qualtrics_utils.utils import (
 Base = declarative_base()
 
 
-def pd_dkindto_sqlalchemy(dtype: np.dtype):
+def pd_dkindto_sqlalchemy(dtype: np.dtype, index: bool = False):
     if np.issubdtype(dtype, np.integer):
         return Integer
     elif np.issubdtype(dtype, np.floating):
@@ -44,7 +45,11 @@ def pd_dkindto_sqlalchemy(dtype: np.dtype):
         or np.issubdtype(dtype, np.dtype("S"))
         or np.issubdtype(dtype, np.dtype("U"))
     ):
-        return Text
+        if not index:
+            return Text
+        else:
+            return VARCHAR(255)
+
     elif np.issubdtype(dtype, np.bool_):
         return Boolean
     else:
@@ -70,7 +75,11 @@ def generate_sql_schema(
         Column(name, pd_dkindto_sqlalchemy(dtype)) for name, dtype in df.dtypes.items()
     ]
     columns = [
-        Column(name, pd_dkindto_sqlalchemy(dtype), primary_key=index_as_pk)
+        Column(
+            name,
+            pd_dkindto_sqlalchemy(dtype, index=index_as_pk),
+            primary_key=index_as_pk,
+        )
         for name, dtype in df.index.to_frame().dtypes.items()
     ] + columns
 
@@ -93,13 +102,16 @@ def get_status_table(table_name: str):
     )
 
 
+def format_name(survey_id: str, table_name: str | None, suffix: str):
+    return table_name if table_name is not None else f"{survey_id}_{suffix}"
+
+
 def format_status_name(survey_id: str, table_name: str | None):
-    t_table_name = table_name if table_name is not None else survey_id
-    return f"{t_table_name}_status"
+    return format_name(survey_id=survey_id, table_name=table_name, suffix="status")
 
 
 def format_responses_name(survey_id: str, table_name: str | None):
-    return table_name if table_name is not None else f"{survey_id}_responses"
+    return format_name(survey_id=survey_id, table_name=table_name, suffix="responses")
 
 
 def format_status_row(exported_file: ExportedFile[T]):
@@ -112,29 +124,32 @@ def format_status_row(exported_file: ExportedFile[T]):
 
 
 def setup_sql(
-    table_name: str | None, conn: sqlalchemy.Connection, restart: bool = False
+    responses_table_name: str | None,
+    status_table_name: str | None,
+    conn: sqlalchemy.Connection,
+    restart: bool = False,
 ):
     def inner(exported_file: ExportedFile[pd.DataFrame]):
         survey_id = exported_file.survey_id
         df = exported_file.data
 
-        responses_table_name = format_responses_name(
-            survey_id=survey_id, table_name=table_name
+        t_responses_table_name = format_responses_name(
+            survey_id=survey_id, table_name=responses_table_name
         )
-        status_table_name = format_status_name(
-            survey_id=survey_id, table_name=table_name
+        t_status_table_name = format_status_name(
+            survey_id=survey_id, table_name=status_table_name
         )
 
         if restart:
-            drop_if_exists(table_name=responses_table_name, conn=conn)
-            drop_if_exists(table_name=status_table_name, conn=conn)
+            drop_if_exists(table_name=t_responses_table_name, conn=conn)
+            drop_if_exists(table_name=t_status_table_name, conn=conn)
 
         responses_table = generate_sql_schema(
-            df=df, table_name=responses_table_name, index_as_pk=True
+            df=df, table_name=t_responses_table_name, index_as_pk=True
         )
         responses_table.create(conn)
 
-        status_table = get_status_table(table_name=status_table_name)
+        status_table = get_status_table(table_name=t_status_table_name)
         status_table.create(conn)
 
         conn.commit()
@@ -207,7 +222,8 @@ def write_responses_sql(
 
 
 def setup_sheets(
-    sheet_name: str | None,
+    responses_sheet_name: str | None,
+    status_sheet_name: str | None,
     sheet_url: str,
     sheets: Sheets,
     restart: bool = False,
@@ -217,22 +233,24 @@ def setup_sheets(
     ):
         survey_id = exported_file.survey_id
 
-        responses_sheet_name = format_responses_name(
-            survey_id=survey_id, table_name=sheet_name
+        t_responses_sheet_name = format_responses_name(
+            survey_id=survey_id, table_name=responses_sheet_name
         )
-        status_sheet_name = format_status_name(
-            survey_id=survey_id, table_name=sheet_name
+        t_status_sheet_name = format_status_name(
+            survey_id=survey_id, table_name=status_sheet_name
         )
 
         if restart:
             delete_sheet_if_exists(
-                sheet_name=responses_sheet_name, spreadsheet_id=sheet_url, sheets=sheets
+                sheet_name=t_responses_sheet_name,
+                spreadsheet_id=sheet_url,
+                sheets=sheets,
             )
             delete_sheet_if_exists(
-                sheet_name=status_sheet_name, spreadsheet_id=sheet_url, sheets=sheets
+                sheet_name=t_status_sheet_name, spreadsheet_id=sheet_url, sheets=sheets
             )
 
-        sheets.add(sheet_url, names=[responses_sheet_name, status_sheet_name])
+        sheets.add(sheet_url, names=[t_responses_sheet_name, t_status_sheet_name])
 
     return inner
 
@@ -363,7 +381,8 @@ def sync_sql(
     survey_id: str,
     surveys: Surveys,
     conn: sqlalchemy.Connection,
-    table_name: str | None = None,
+    responses_table_name: str | None = None,
+    status_table_name: str | None = None,
     restart: bool = False,
     response_post_processing_func: "ResponsePostProcessingFunc" = responses_post_processing_func_default,
     **kwargs: Any,
@@ -393,10 +412,17 @@ def sync_sql(
     _sync(
         survey_id=survey_id,
         surveys=surveys,
-        status_reader=get_last_status_sql(table_name=table_name, conn=conn),
-        status_writer=write_status_sql(table_name=table_name, conn=conn),
-        responses_writer=write_responses_sql(table_name=table_name, conn=conn),
-        setup_func=setup_sql(table_name=table_name, conn=conn, restart=restart),
+        status_reader=get_last_status_sql(table_name=status_table_name, conn=conn),
+        status_writer=write_status_sql(table_name=status_table_name, conn=conn),
+        responses_writer=write_responses_sql(
+            table_name=responses_table_name, conn=conn
+        ),
+        setup_func=setup_sql(
+            responses_table_name=responses_table_name,
+            status_table_name=status_table_name,
+            conn=conn,
+            restart=restart,
+        ),
         responses_post_processing_func=response_post_processing_func,
         **kwargs,
     )
@@ -407,7 +433,8 @@ def sync_sheets(
     surveys: Surveys,
     sheets: Sheets,
     sheet_url: str,
-    sheet_name: str | None = None,
+    responses_sheet_name: str | None = None,
+    status_sheet_name: str | None = None,
     restart: bool = False,
     response_post_processing_func: "ResponsePostProcessingFunc" = responses_post_processing_func_default,
     **kwargs: Any,
@@ -434,16 +461,20 @@ def sync_sheets(
         survey_id=survey_id,
         surveys=surveys,
         status_reader=get_last_status_sheets(
-            sheet_name=sheet_name, sheet_url=sheet_url, sheets=sheets
+            sheet_name=status_sheet_name, sheet_url=sheet_url, sheets=sheets
         ),
         status_writer=write_status_sheets(
-            sheet_name=sheet_name, sheet_url=sheet_url, sheets=sheets
+            sheet_name=status_sheet_name, sheet_url=sheet_url, sheets=sheets
         ),
         responses_writer=write_responses_sheets(
-            sheet_name=sheet_name, sheet_url=sheet_url, sheets=sheets
+            sheet_name=responses_sheet_name, sheet_url=sheet_url, sheets=sheets
         ),
         setup_func=setup_sheets(
-            sheet_name=sheet_name, sheet_url=sheet_url, sheets=sheets, restart=restart
+            responses_sheet_name=responses_sheet_name,
+            status_sheet_name=status_sheet_name,
+            sheet_url=sheet_url,
+            sheets=sheets,
+            restart=restart,
         ),
         responses_post_processing_func=response_post_processing_func,
         **kwargs,
@@ -484,9 +515,14 @@ def main():
         help="Restart the sync from the beginning of the survey.",
     )
     parser.add_argument(
-        "--table-name",
+        "--responses-table-name",
         required=False,
-        help="Base table name for the survey. If not provided, the survey ID will be used.",
+        help="The name of the responses table. If not provided, the survey ID will be used.",
+    )
+    parser.add_argument(
+        "--status-table-name",
+        required=False,
+        help="The name of the status table. If not provided, the survey ID will be used.",
     )
     parser.add_argument(
         "--kind",
@@ -519,7 +555,10 @@ def main():
     survey_id = qualtrics_config["survey_id"]
 
     kind = args.kind
-    table_name = args.table_name
+
+    responses_table_name = args.responses_table_name
+    status_table_name = args.status_table_name
+
     verbose = args.verbose
     restart = args.restart
 
@@ -567,7 +606,8 @@ def main():
                 surveys=surveys,
                 response_post_processing_func=post_processing_func,
                 conn=conn,
-                table_name=table_name,
+                responses_table_name=responses_table_name,
+                status_table_name=status_table_name,
                 restart=restart,
                 **survey_args,
             )

@@ -60,15 +60,13 @@ def get_id_from_url(
     Args:
         url (str): The URL string from which to extract the ID.
     """
-    url_obj = urllib.parse.urlparse(url)
-    path = url_obj.path
-    paths = path.split("/")
+    paths = url.split("/")
 
-    get_adjacent = (
-        lambda x: paths[t_ix]
-        if x in paths and (t_ix := paths.index(x) + 1) < len(paths)
-        else None
-    )
+    def get_adjacent(x: str) -> Optional[str]:
+        if x in paths and (t_ix := paths.index(x) + 1) < len(paths):
+            return paths[t_ix]
+        else:
+            return None
 
     for i in adjacent_options:
         if (id := get_adjacent(i)) is not None:
@@ -82,7 +80,7 @@ def get_id_from_url(
     raise ValueError(f"Could not parse file URL of {url}")
 
 
-ADJACENT_OPTIONS = ["form", "survey-builder"]
+ADJACENT_OPTIONS = ["form", "survey-builder", "surveys"]
 QUERY_PARAM_OPTIONS = ["surveyId", "id"]
 
 
