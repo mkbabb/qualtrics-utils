@@ -490,33 +490,49 @@ def main():
     )
     parser.add_argument(
         "--kind",
-        choices=["sheets", "sql"],
+        choices=["sheets", "mysql"],
         required=True,
-        help="The kind of sync to perform. Either 'sheets' or 'sql' (mysql only for now).",
+        help="The kind of sync to perform. Either 'sheets' or 'mysql'.",
     )
 
     args = parser.parse_args()
 
     config = tomllib.loads(args.config.read_text())
 
-    qualtrics_api_token = config["qualtrics"]["api_token"]
-    codebook_path = pathlib.Path(config["qualtrics"]["codebook_path"])
+    qualtrics_config = config["qualtrics"]
+
+    if "api_token" not in qualtrics_config:
+        raise ValueError("API token is not provided in the config file.")
+
+    qualtrics_api_token = qualtrics_config["api_token"]
+    codebook_path = (
+        pathlib.Path(qualtrics_config["codebook_path"])
+        if "codebook_path" in qualtrics_config
+        else None
+    )
 
     surveys = Surveys(api_token=qualtrics_api_token)
 
-    survey_id = config["qualtrics"]["survey_id"]
+    if "survey_id" not in qualtrics_config:
+        raise ValueError("Survey ID is not provided in the config file.")
+
+    survey_id = qualtrics_config["survey_id"]
 
     kind = args.kind
     table_name = args.table_name
     verbose = args.verbose
     restart = args.restart
 
-    survey_args = config["qualtrics"]["survey_args"]
+    survey_args = qualtrics_config["survey_args"] if "survey_args" in config else {}
+
     for k, v in survey_args.items():
         if isinstance(v, str) and "date" in k.lower():
             survey_args[k] = pd.to_datetime(v)
 
     def post_processing_func(df: pd.DataFrame):
+        if codebook_path is None:
+            return df
+
         codebook = generate_codebook(codebook_path)
         tmp = coalesce_multiselect(df, codebook=codebook)
         tmp = rename_columns(tmp, codebook=codebook, verbose=verbose)
@@ -539,7 +555,9 @@ def main():
             restart=restart,
             **survey_args,
         )
-    elif kind == "sql":
+    elif kind == "mysql":
+        # TODO: generalize to handle other SQL databases
+
         engine = create_mysql_engine(
             **config["mysql"],
         )
