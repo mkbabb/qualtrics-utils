@@ -8,6 +8,7 @@ import sqlalchemy
 from googleapiutils2 import Sheets, SheetsValueRange
 from loguru import logger
 from sqlalchemy import (
+    VARCHAR,
     Boolean,
     Column,
     DateTime,
@@ -17,7 +18,6 @@ from sqlalchemy import (
     Table,
     Text,
     func,
-    VARCHAR,
 )
 from sqlalchemy.orm import declarative_base
 
@@ -25,8 +25,6 @@ from qualtrics_utils.misc import ExportedFile, T
 from qualtrics_utils.survey import Surveys
 from qualtrics_utils.utils import (
     create_mysql_engine,
-    delete_sheet_if_exists,
-    drop_if_exists,
     parse_file_id,
 )
 
@@ -133,6 +131,8 @@ def setup_sql(
         survey_id = exported_file.survey_id
         df = exported_file.data
 
+        metadata = MetaData()
+
         t_responses_table_name = format_responses_name(
             survey_id=survey_id, table_name=responses_table_name
         )
@@ -140,17 +140,22 @@ def setup_sql(
             survey_id=survey_id, table_name=status_table_name
         )
 
+        responses_table = sqlalchemy.Table(t_responses_table_name, metadata)
+        status_table = sqlalchemy.Table(t_status_table_name, metadata)
+
         if restart:
-            drop_if_exists(table_name=t_responses_table_name, conn=conn)
-            drop_if_exists(table_name=t_status_table_name, conn=conn)
+            responses_table.drop(conn, checkfirst=True)
+            status_table.drop(conn, checkfirst=True)
 
-        responses_table = generate_sql_schema(
-            df=df, table_name=t_responses_table_name, index_as_pk=True
-        )
-        responses_table.create(conn)
+        if not conn.dialect.has_table(conn, t_responses_table_name):
+            responses_table = generate_sql_schema(
+                df=df, table_name=t_responses_table_name, index_as_pk=True
+            )
+            responses_table.create(conn)
 
-        status_table = get_status_table(table_name=t_status_table_name)
-        status_table.create(conn)
+        if not conn.dialect.has_table(conn, t_status_table_name):
+            status_table = get_status_table(table_name=t_status_table_name)
+            status_table.create(conn)
 
         conn.commit()
 
@@ -207,15 +212,31 @@ def write_responses_sql(
     def inner(
         exported_file: ExportedFile[pd.DataFrame],
     ):
+        survey_id = exported_file.survey_id
         df = exported_file.data
 
+        metadata = MetaData()
+
+        respones_table_name = format_responses_name(
+            survey_id=survey_id, table_name=table_name
+        )
+
+        responses_table = Table(respones_table_name, metadata, autoload_with=conn)
+
+        existing_columns = [col.name for col in responses_table.columns]
+        df.drop(
+            columns=[col for col in df.columns if col not in existing_columns],
+            inplace=True,
+        )
+
         df.to_sql(
-            table_name,
+            respones_table_name,
             conn,
             if_exists="append",
             index=True,
             index_label=df.index.name,
         )
+
         conn.commit()
 
     return inner
@@ -241,14 +262,17 @@ def setup_sheets(
         )
 
         if restart:
-            delete_sheet_if_exists(
-                sheet_name=t_responses_sheet_name,
-                spreadsheet_id=sheet_url,
-                sheets=sheets,
+            sheets.delete(
+                sheet_url,
+                names=[t_responses_sheet_name, t_status_sheet_name],
+                ignore_not_existing=True,
             )
-            delete_sheet_if_exists(
-                sheet_name=t_status_sheet_name, spreadsheet_id=sheet_url, sheets=sheets
-            )
+
+        sheets.add(
+            sheet_url,
+            names=[t_responses_sheet_name, t_status_sheet_name],
+            ignore_existing=True,
+        )
 
         sheets.add(sheet_url, names=[t_responses_sheet_name, t_status_sheet_name])
 
@@ -562,7 +586,9 @@ def main():
     verbose = args.verbose
     restart = args.restart
 
-    survey_args = qualtrics_config["survey_args"] if "survey_args" in config else {}
+    survey_args = (
+        qualtrics_config["survey_args"] if "survey_args" in qualtrics_config else {}
+    )
 
     for k, v in survey_args.items():
         if isinstance(v, str) and "date" in k.lower():

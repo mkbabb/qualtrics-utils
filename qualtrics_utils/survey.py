@@ -9,6 +9,7 @@ from zipfile import ZipFile
 
 import pandas as pd
 import requests
+from loguru import logger
 
 from qualtrics_utils.misc import BASE_URL, HEADERS, VERSION, ExportedFile
 from qualtrics_utils.surveys_response_import_export_api_client.api.response_exports import (
@@ -65,8 +66,8 @@ class Surveys:
         survey_id: str,
         format: ExportCreationRequestFormat = ExportCreationRequestFormat.CSV,
         use_labels: bool = True,
-        end_date: datetime.datetime | None = None,
         start_date: datetime.datetime | None = None,
+        end_date: datetime.datetime | None = None,
         export_responses_in_progress: bool = False,
         continuation_token: Optional[str] = None,
         **kwargs: Any,
@@ -77,13 +78,13 @@ class Surveys:
             breakout_sets=True,
             seen_unanswered_recode=-1,
             multiselect_seen_unanswered_recode=-1,
-            allow_continuation=not export_responses_in_progress,
+            allow_continuation=not export_responses_in_progress and end_date is None,
             sort_by_last_modified_date=False,
             include_label_columns=not use_labels,
             compress=True,
             export_responses_in_progress=export_responses_in_progress,
-            end_date=end_date if end_date is not None else UNSET,
             start_date=start_date if start_date is not None else UNSET,
+            end_date=end_date if end_date is not None else UNSET,
             continuation_token=continuation_token
             if continuation_token is not None
             else UNSET,
@@ -128,8 +129,8 @@ class Surveys:
         survey_id: str,
         format: ExportCreationRequestFormat = ExportCreationRequestFormat.CSV,
         use_labels: bool = True,
-        end_date: datetime.datetime | None = None,
         start_date: datetime.datetime | None = None,
+        end_date: datetime.datetime | None = None,
         export_responses_in_progress: bool = False,
         continuation_token: Optional[str] = None,
         last_response_id: Optional[str] = None,
@@ -163,8 +164,8 @@ class Surveys:
             survey_id=survey_id,
             format=format,
             use_labels=use_labels,
-            end_date=end_date,
             start_date=start_date,
+            end_date=end_date,
             export_responses_in_progress=export_responses_in_progress,
             continuation_token=continuation_token,
             **kwargs,
@@ -271,6 +272,9 @@ class Surveys:
                     iterator=True,
                 )
                 new_df = pd.concat(new_df_reader, ignore_index=True)
+
+                logger.info(f"Exported {len(new_df)} responses.")
+
                 new_df.set_index("ResponseId", inplace=True)
 
                 # If the last response is the same as the last response from the previous export, drop it.
