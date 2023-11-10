@@ -28,6 +28,10 @@ pytest = "^7.4.3"
 pymysql = "^1.1.0"
 pandas-stubs = "^2.1.1.230928"
 
+[[tool.mypy.overrides]]
+module = "google.*,google_auth_oauthlib.*"
+ignore_missing_imports = true
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

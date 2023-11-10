@@ -3,13 +3,25 @@ from __future__ import annotations
 import re
 import urllib.parse
 from functools import cache
-from typing import *
+from typing import Any
 
+import numpy as np
 import pandas as pd
 import sqlalchemy
 from attr import asdict
 from googleapiutils2 import Sheets
 from loguru import logger
+from sqlalchemy import (
+    VARCHAR,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    MetaData,
+    Table,
+)
+from sqlalchemy import Text as SQLAlchemyText
 
 from qualtrics_utils.misc import T
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
@@ -40,7 +52,7 @@ def quote_value(value: str, quote: str = "`") -> str:
         return f"{quote}{value}{quote}"
 
 
-def get_url_params(url: str) -> dict[str, List[str]]:
+def get_url_params(url: str) -> dict[str, list[str]]:
     """Get the components of the given URL."""
     return urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
 
@@ -62,7 +74,7 @@ def get_id_from_url(
     """
     paths = url.split("/")
 
-    def get_adjacent(x: str) -> Optional[str]:
+    def get_adjacent(x: str) -> str | None:
         if x in paths and (t_ix := paths.index(x) + 1) < len(paths):
             return paths[t_ix]
         else:
@@ -241,6 +253,139 @@ def coalesce_multiselect(
         df[root_q_num] = root_question_df
 
     return df
+
+
+def dtype_to_sqlalchemy(dtype: Any, index: bool = False):
+    if isinstance(dtype, pd.Int64Dtype) or np.issubdtype(dtype, np.integer):
+        return Integer
+    elif isinstance(dtype, pd.Float64Dtype) or np.issubdtype(dtype, np.floating):
+        return Float
+    elif isinstance(dtype, pd.DatetimeTZDtype) or np.issubdtype(dtype, np.datetime64):
+        return DateTime
+    elif isinstance(dtype, pd.StringDtype) or (
+        np.issubdtype(dtype, np.dtype("O"))
+        or np.issubdtype(dtype, np.dtype("S"))
+        or np.issubdtype(dtype, np.dtype("U"))
+    ):
+        if not index:
+            return SQLAlchemyText
+        else:
+            return VARCHAR(255)
+    elif isinstance(dtype, pd.BooleanDtype) or np.issubdtype(dtype, np.bool_):
+        return Boolean
+    else:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+
+def generate_sql_schema(
+    df: pd.DataFrame,
+    table_name: str,
+    index_as_pk: bool = False,
+    auto_increment: bool = True,
+):
+    """Generate a SQLAlchemy table schema from a Pandas DataFrame.
+
+    Args:
+        df (pd.DataFrame): The DataFrame from which to generate the schema.
+        table_name (str): The name of the table.
+        index_as_pk (bool, optional): Whether to use the index as the primary key. Defaults to False.
+        auto_increment (bool, optional): Whether to use autoincrement for the primary key. Defaults to True.
+    """
+    metadata = MetaData()
+    columns: list[Column] = [
+        Column(str(name), dtype_to_sqlalchemy(dtype))
+        for name, dtype in df.dtypes.items()
+    ]
+    columns = [
+        Column(
+            str(name),
+            dtype_to_sqlalchemy(dtype, index=index_as_pk),
+            primary_key=index_as_pk,
+        )
+        for name, dtype in df.index.to_frame().dtypes.items()
+    ] + columns
+
+    if auto_increment:
+        columns.insert(0, Column("id", Integer, primary_key=True, autoincrement=True))
+
+    table = Table(table_name, metadata, *columns)
+    return table
+
+
+def qualtrics_schema_to_dtypes(
+    schema: dict[str, Any],
+    use_labels: bool = True,
+    skip_embedded_data: bool = True,
+    dtypes: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Transforms a Qualtrics response schema into a map of column names to Pandas/NumPy data types,
+    with an option to use string types for labeled questions.
+
+    :param schema: Qualtrics response schema in dictionary format.
+    :param use_labels: If True, map questions with labels to string type.
+    :return: A dictionary mapping column names to Pandas/NumPy data types.
+    """
+    if dtypes is None:
+        dtypes = {}
+
+    t_types: dict[str, Any] = {}
+    properties: dict = schema["result"]["properties"]["values"]["properties"]
+
+    LABELED_TYPES = ["oneOf", "anyOf"]
+    DISPLAY_ORDER = " - Display Order"
+
+    for key, value in properties.items():
+        name = value.get("exportTag")
+        type = value.get("type")
+        format_type = value.get("format")
+
+        data_type = value.get("dataType")
+
+        items = value.get("items", {})
+        description = value.get("description", "")
+
+        if skip_embedded_data and data_type == "embeddedData":
+            continue
+
+        # prefer format type over type
+        if format_type is not None:
+            type = format_type
+
+        # skip over display order columns
+        if description.endswith(DISPLAY_ORDER):
+            continue
+
+        is_labeled = any(
+            [
+                (label_type in value) or (label_type in items)
+                for label_type in LABELED_TYPES
+            ]
+        )
+
+        if is_labeled and use_labels:
+            t_types[name] = str
+            continue
+
+        match type.lower():
+            case "string":
+                t_types[name] = str
+            case "boolean":
+                t_types[name] = bool
+            case "date-time" | "date" | "time":
+                t_types[name] = np.datetime64
+            case "number" | "array":
+                if is_labeled:
+                    t_types[name] = pd.Int64Dtype()
+                else:
+                    t_types[name] = float
+            case _:
+                t_types[name] = str
+
+    return {
+        **t_types,
+        **dtypes,
+    }
 
 
 def create_mysql_engine(

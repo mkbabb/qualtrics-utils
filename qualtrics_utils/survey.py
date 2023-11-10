@@ -6,6 +6,7 @@ import zipfile
 from io import BytesIO
 from typing import IO, Any, Optional
 from zipfile import ZipFile
+import numpy as np
 
 import pandas as pd
 import requests
@@ -26,13 +27,14 @@ from qualtrics_utils.surveys_response_import_export_api_client.models import (
     RequestStatus,
 )
 from qualtrics_utils.surveys_response_import_export_api_client.types import UNSET
-from qualtrics_utils.utils import parse_file_id, reset_request_defaults
+from qualtrics_utils.utils import (
+    parse_file_id,
+    reset_request_defaults,
+    qualtrics_schema_to_dtypes,
+)
 
 # The first two rows of the CSV are Qualtrics metadata.
 SKIP_ROWS = [1, 2]
-
-# These columns are parsed as dates.
-PARSE_DATES = ["StartDate", "EndDate"]
 
 
 class Surveys:
@@ -91,8 +93,13 @@ class Surveys:
             **kwargs,
         )
         payload = ExportCreationRequest(**kwargs)
-        # ! This is a HACK because the Qualtrics OpenAPI docs suck tremendously and the defaults are NOT correct.
+        # ! This is a hack: the Qualtrics OpenAPI docs suck tremendously and the defaults are NOT correct.
         payload = reset_request_defaults(payload, kwargs)
+
+        logger.info(
+            f"Exporting responses from {survey_id} from {start_date} to {end_date}."
+        )
+        logger.debug(f"Exporting with payload: {payload}")
 
         return create_export.sync(
             survey_id=survey_id,
@@ -101,6 +108,8 @@ class Surveys:
         )
 
     def _response_export_status(self, survey_id: str, export_progress_id: str):
+        logger.info(f"Getting export progress for survey {survey_id}...")
+
         while True:
             r = get_export_progress.sync(
                 survey_id=survey_id,
@@ -108,6 +117,11 @@ class Surveys:
                 client=self.client,
             )
             status = r.result.status  # type: ignore
+
+            logger.info(
+                f"Export progress for file {r.result.file_id}: {r.result.percent_complete}%"  # type: ignore
+            )
+
             match status:
                 case None | RequestStatus.FAILED:
                     raise Exception("Export failed", r)
@@ -117,11 +131,14 @@ class Surveys:
                     continue
 
     def _response_export_file(self, survey_id: str, file_id: str) -> bytes:
+        logger.info(f"Downloading file {file_id} for survey {survey_id}...")
+
         r = get_export_file.sync(
             survey_id=survey_id,
             file_id=file_id,
             client=self.client,
         )
+
         return r.payload.read()  # type: ignore
 
     def get_responses(
@@ -225,7 +242,7 @@ class Surveys:
         continuation_token: Optional[str] = None,
         last_response_id: Optional[str] = None,
         filter_preview: bool = True,
-        parse_dates: list[str] = PARSE_DATES,
+        dtypes: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> ExportedFile[pd.DataFrame]:
         """Get responses from a survey by survey_id.
@@ -263,13 +280,31 @@ class Surveys:
             **kwargs,
         )
 
+        schema = self.get_survey_schema(survey_id=survey_id)
+        dtypes = qualtrics_schema_to_dtypes(
+            schema=schema, use_labels=use_labels, dtypes=dtypes
+        )
+
+        # Pandas' CSV reader cannot parse dates using the dtypes arg
+        # So we have to feed them into the parse_dates arg
+        parse_dates = []
+        for col, type in dtypes.items():
+            if isinstance(type, np.datetime64) or type == np.datetime64:
+                parse_dates.append(col)
+
+        dtypes = {k: v for k, v in dtypes.items() if k not in parse_dates}
+
         with zipfile.ZipFile(BytesIO(raw_data.data)) as data:
             with data.open(data.filelist[0]) as f:
+                logger.info(f"Reading file {f.name}...")
+
                 new_df_reader = pd.read_csv(
                     f,
                     skiprows=SKIP_ROWS,
-                    parse_dates=parse_dates,
                     iterator=True,
+                    dtype=dtypes,
+                    skip_blank_lines=True,
+                    parse_dates=parse_dates,
                 )
                 new_df = pd.concat(new_df_reader, ignore_index=True)
 
@@ -280,6 +315,7 @@ class Surveys:
                 # If the last response is the same as the last response from the previous export, drop it.
                 if not new_df.empty and new_df.index[0] == last_response_id:
                     new_df.drop(new_df.index[0], inplace=True)
+
                 # Sort by StartDate
                 new_df.sort_values("StartDate", inplace=True)
                 # Replace all blank values with pd.NA
@@ -294,7 +330,11 @@ class Surveys:
                 )
                 # Filter out Survey Preview responses
                 if filter_preview and "Status" in new_df.columns:
-                    new_df = new_df[new_df["Status"] != "Survey Preview"]
+                    preview_df = new_df[new_df["Status"] == "Survey Preview"]
+                    logger.info(
+                        f"Filtering out {len(preview_df)} Survey Preview responses."
+                    )
+                    new_df.drop(preview_df.index, inplace=True)
 
                 # Set the last_response_id to the last response in the DataFrame, or the last_response_id from the previous export.
                 last_response_id = (
@@ -317,7 +357,12 @@ class Surveys:
             survey_id (str): The survey_id of the survey to get the schema from.
         """
         survey_id = parse_file_id(survey_id)
-        schema_url = self._make_api_url("{survey_id}", survey_id=survey_id)
-        r = requests.get(schema_url, headers=HEADERS)
+
+        logger.info(f"Getting schema for survey {survey_id}...")
+
+        schema_url = self._make_api_url(
+            "surveys/{survey_id}/response-schema/", survey_id=survey_id
+        )
+        r = requests.get(schema_url, headers=self.headers)
         r.raise_for_status()
         return r.json()

@@ -2,90 +2,18 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-import numpy as np
 import pandas as pd
 import sqlalchemy
 from googleapiutils2 import Sheets, SheetsValueRange
 from loguru import logger
-from sqlalchemy import (
-    VARCHAR,
-    Boolean,
-    Column,
-    DateTime,
-    Float,
-    Integer,
-    MetaData,
-    Table,
-    Text,
-    func,
-)
+from sqlalchemy import Column, DateTime, Integer, MetaData, Table, Text, func
 from sqlalchemy.orm import declarative_base
 
 from qualtrics_utils.misc import ExportedFile, T
 from qualtrics_utils.survey import Surveys
-from qualtrics_utils.utils import (
-    create_mysql_engine,
-    parse_file_id,
-)
+from qualtrics_utils.utils import generate_sql_schema, parse_file_id
 
 Base = declarative_base()
-
-
-def pd_dkindto_sqlalchemy(dtype: np.dtype, index: bool = False):
-    if np.issubdtype(dtype, np.integer):
-        return Integer
-    elif np.issubdtype(dtype, np.floating):
-        return Float
-    elif np.issubdtype(dtype, np.datetime64):
-        return DateTime
-    elif (
-        np.issubdtype(dtype, np.dtype("O"))
-        or np.issubdtype(dtype, np.dtype("S"))
-        or np.issubdtype(dtype, np.dtype("U"))
-    ):
-        if not index:
-            return Text
-        else:
-            return VARCHAR(255)
-
-    elif np.issubdtype(dtype, np.bool_):
-        return Boolean
-    else:
-        raise ValueError(f"Unsupported dtype: {dtype}")
-
-
-def generate_sql_schema(
-    df: pd.DataFrame,
-    table_name: str,
-    index_as_pk: bool = False,
-    auto_increment: bool = True,
-):
-    """Generate a SQLAlchemy table schema from a Pandas DataFrame.
-
-    Args:
-        df (pd.DataFrame): The DataFrame from which to generate the schema.
-        table_name (str): The name of the table.
-        index_as_pk (bool, optional): Whether to use the index as the primary key. Defaults to False.
-        auto_increment (bool, optional): Whether to use autoincrement for the primary key. Defaults to True.
-    """
-    metadata = MetaData()
-    columns: list[Column] = [
-        Column(name, pd_dkindto_sqlalchemy(dtype)) for name, dtype in df.dtypes.items()
-    ]
-    columns = [
-        Column(
-            name,
-            pd_dkindto_sqlalchemy(dtype, index=index_as_pk),
-            primary_key=index_as_pk,
-        )
-        for name, dtype in df.index.to_frame().dtypes.items()
-    ] + columns
-
-    if auto_increment:
-        columns.insert(0, Column("id", Integer, primary_key=True, autoincrement=True))
-
-    table = Table(table_name, metadata, *columns)
-    return table
 
 
 def get_status_table(table_name: str):
@@ -361,13 +289,14 @@ def _sync(
     survey_id: str,
     surveys: Surveys,
     status_reader: Callable[[str], dict | None],
-    status_writer: Callable[[ExportedFile[T]], None],
+    status_writer: Callable[[ExportedFile[pd.DataFrame]], None],
     responses_writer: Callable[[ExportedFile[pd.DataFrame]], None],
     setup_func: Callable[[ExportedFile[pd.DataFrame]], None],
     responses_post_processing_func: ResponsePostProcessingFunc = responses_post_processing_func_default,
     **kwargs: Any,
 ):
     survey_id = parse_file_id(survey_id)
+    logger.info(f"Syncing survey {survey_id}...")
 
     last_status = None
     try:
@@ -386,6 +315,11 @@ def _sync(
         if last_status is not None and last_response_id is None
         else None
     )
+
+    logger.info(
+        f"Last response ID: {last_response_id} and continuation token: {continuation_token}"
+    )
+
     exported_file = surveys.get_responses_df(
         survey_id=survey_id,
         last_response_id=last_response_id,
@@ -394,10 +328,13 @@ def _sync(
     )
     exported_file.data = responses_post_processing_func(exported_file.data)
 
+    logger.info(f"Setting up tables...")
     setup_func(exported_file)
 
+    logger.info(f"Writing responses...")
     responses_writer(exported_file)
 
+    logger.info(f"Writing status...")
     status_writer(exported_file)
 
 
@@ -586,13 +523,15 @@ def main():
     verbose = args.verbose
     restart = args.restart
 
+    logger.info(f"Kind: {kind}")
+    logger.info(f"Restart: {restart}")
+    logger.info(f"Responses table name: {responses_table_name}")
+    logger.info(f"Status table name: {status_table_name}")
+    logger.info(f"Verbose: {verbose}")
+
     survey_args = (
         qualtrics_config["survey_args"] if "survey_args" in qualtrics_config else {}
     )
-
-    for k, v in survey_args.items():
-        if isinstance(v, str) and "date" in k.lower():
-            survey_args[k] = pd.to_datetime(v)
 
     def post_processing_func(df: pd.DataFrame):
         if codebook_path is None:
@@ -614,7 +553,8 @@ def main():
             survey_id=survey_id,
             surveys=surveys,
             response_post_processing_func=post_processing_func,
-            sheet_name=table_name,
+            responses_sheet_name=responses_table_name,
+            status_sheet_name=status_table_name,
             sheet_url=responses_url,
             sheets=sheets,
             restart=restart,
