@@ -1,17 +1,34 @@
 from __future__ import annotations
 
+import pathlib
+import tomllib
+from argparse import ArgumentParser
+from enum import Enum
 from typing import Any, Callable
 
 import pandas as pd
 import sqlalchemy
-from googleapiutils2 import Sheets, SheetsValueRange
+from googleapiutils2 import Sheets, SheetsValueRange, get_oauth2_creds  # type: ignore
 from loguru import logger
 from sqlalchemy import Column, DateTime, Integer, MetaData, Table, Text, func
 from sqlalchemy.orm import declarative_base
 
+from qualtrics_utils.codebook.generate import generate_codebook
 from qualtrics_utils.misc import ExportedFile, T
 from qualtrics_utils.survey import Surveys
-from qualtrics_utils.utils import generate_sql_schema, parse_file_id
+from qualtrics_utils.utils import (
+    coalesce_multiselect,
+    create_mysql_engine,
+    generate_sql_schema,
+    parse_file_id,
+    rename_columns,
+)
+
+
+class SyncType(Enum):
+    SHEETS = "sheets"
+    MYSQL = "mysql"
+
 
 Base = declarative_base()
 
@@ -442,60 +459,14 @@ def sync_sheets(
     )
 
 
-def main():
-    import pathlib
-    import tomllib
-    from argparse import ArgumentParser
-
-    from googleapiutils2 import Sheets, get_oauth2_creds
-
-    from qualtrics_utils import (
-        Surveys,
-        coalesce_multiselect,
-        create_mysql_engine,
-        generate_codebook,
-        rename_columns,
-    )
-
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--config",
-        type=pathlib.Path,
-        required=False,
-        default=pathlib.Path("auth/config.toml"),
-        help="Path to the config file. See the config.example.toml for more information.",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Synced column names will be the verbose names from the codebook (if provided)",
-    )
-    parser.add_argument(
-        "--restart",
-        action="store_true",
-        help="Restart the sync from the beginning of the survey.",
-    )
-    parser.add_argument(
-        "--responses-table-name",
-        required=False,
-        help="The name of the responses table. If not provided, the survey ID will be used.",
-    )
-    parser.add_argument(
-        "--status-table-name",
-        required=False,
-        help="The name of the status table. If not provided, the survey ID will be used.",
-    )
-    parser.add_argument(
-        "--kind",
-        choices=["sheets", "mysql"],
-        required=True,
-        help="The kind of sync to perform. Either 'sheets' or 'mysql'.",
-    )
-
-    args = parser.parse_args()
-
-    config = tomllib.loads(args.config.read_text())
-
+def sync(
+    config: dict[str, Any],
+    type: SyncType,
+    responses_table_name: str | None,
+    status_table_name: str | None,
+    verbose: bool,
+    restart: bool,
+):
     qualtrics_config = config["qualtrics"]
 
     if "api_token" not in qualtrics_config:
@@ -515,23 +486,15 @@ def main():
 
     survey_id = qualtrics_config["survey_id"]
 
-    kind = args.kind
+    survey_args = (
+        qualtrics_config["survey_args"] if "survey_args" in qualtrics_config else {}
+    )
 
-    responses_table_name = args.responses_table_name
-    status_table_name = args.status_table_name
-
-    verbose = args.verbose
-    restart = args.restart
-
-    logger.info(f"Kind: {kind}")
+    logger.info(f"Type: {type}")
     logger.info(f"Restart: {restart}")
     logger.info(f"Responses table name: {responses_table_name}")
     logger.info(f"Status table name: {status_table_name}")
     logger.info(f"Verbose: {verbose}")
-
-    survey_args = (
-        qualtrics_config["survey_args"] if "survey_args" in qualtrics_config else {}
-    )
 
     def post_processing_func(df: pd.DataFrame):
         if codebook_path is None:
@@ -543,7 +506,7 @@ def main():
 
         return tmp
 
-    if kind == "sheets":
+    if type == SyncType.SHEETS:
         responses_url = config["google"]["urls"]["responses"]
 
         creds = get_oauth2_creds(config["google"]["credentials_path"])
@@ -560,12 +523,11 @@ def main():
             restart=restart,
             **survey_args,
         )
-    elif kind == "mysql":
-        # TODO: generalize to handle other SQL databases
-
+    elif type == SyncType.MYSQL:
         engine = create_mysql_engine(
             **config["mysql"],
         )
+
         with engine.connect() as conn:
             sync_sql(
                 survey_id=survey_id,
@@ -577,6 +539,38 @@ def main():
                 restart=restart,
                 **survey_args,
             )
+
+
+def main():
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=pathlib.Path,
+        required=False,
+        default=pathlib.Path("auth/config.toml"),
+    )
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--restart", action="store_true")
+    parser.add_argument("--responses-table-name", required=False)
+    parser.add_argument("--status-table-name", required=False)
+    parser.add_argument(
+        "--type",
+        choices=[t.value for t in SyncType.__members__.keys()],
+        required=True,
+        type=SyncType,
+    )
+    args = parser.parse_args()
+
+    config = tomllib.loads(args.config.read_text())
+
+    sync(
+        config=config,
+        type=args.type,
+        responses_table_name=args.responses_table_name,
+        status_table_name=args.status_table_name,
+        verbose=args.verbose,
+        restart=args.restart,
+    )
 
 
 if __name__ == "__main__":
