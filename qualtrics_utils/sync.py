@@ -5,6 +5,7 @@ import tomllib
 from argparse import ArgumentParser
 from enum import Enum
 from typing import Any, Callable
+import uuid
 
 import pandas as pd
 import sqlalchemy
@@ -206,7 +207,11 @@ def setup_sheets(
             survey_id=survey_id, table_name=status_sheet_name
         )
 
+        tmp_sheet_name = str(uuid.uuid4())
+
         if restart:
+            sheets.add(sheet_url, names=tmp_sheet_name)
+
             sheets.delete(
                 sheet_url,
                 names=[t_responses_sheet_name, t_status_sheet_name],
@@ -218,8 +223,7 @@ def setup_sheets(
             names=[t_responses_sheet_name, t_status_sheet_name],
             ignore_existing=True,
         )
-
-        sheets.add(sheet_url, names=[t_responses_sheet_name, t_status_sheet_name])
+        sheets.delete(sheet_url, names=tmp_sheet_name, ignore_not_existing=True)
 
     return inner
 
@@ -555,7 +559,7 @@ def main():
     parser.add_argument("--status-table-name", required=False)
     parser.add_argument(
         "--type",
-        choices=[t.value for t in SyncType.__members__.keys()],
+        choices=[t for t in SyncType.__members__.values()],
         required=True,
         type=SyncType,
     )

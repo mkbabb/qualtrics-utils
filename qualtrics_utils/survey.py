@@ -318,8 +318,15 @@ class Surveys:
 
                 # Sort by StartDate
                 new_df.sort_values("StartDate", inplace=True)
+
                 # Replace all blank values with pd.NA
-                new_df.replace([r"^\s*$", "-1", -1], pd.NA, regex=True, inplace=True)
+                try:
+                    new_df.replace(
+                        [r"^\s*$", "-1", -1], pd.NA, regex=True, inplace=True
+                    )
+                except Exception as e:
+                    logger.error(e)
+
                 # Cast all columns that are entirely pd.NA to object (str)
                 new_df = new_df.astype(
                     {
