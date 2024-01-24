@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pathlib
 import tomllib
+import uuid
 from argparse import ArgumentParser
 from enum import Enum
 from typing import Any, Callable
-import uuid
 
 import pandas as pd
 import sqlalchemy
@@ -546,7 +546,9 @@ def sync(
 
 
 def main():
-    parser = ArgumentParser()
+    parser = ArgumentParser(
+        description="""Sync Qualtrics survey responses to a target."""
+    )
     parser.add_argument(
         "--config",
         type=pathlib.Path,
