@@ -8,7 +8,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import sqlalchemy
-from attr import asdict
 from googleapiutils2 import Sheets
 from loguru import logger
 from sqlalchemy import (
@@ -152,7 +151,9 @@ def reset_request_defaults(request: T, set_items: dict[str, Any]) -> T:
     if not hasattr(request, "to_dict") or not hasattr(request, "from_dict"):
         raise ValueError("request must have a to_dict() and from_dict() method")
 
-    for k, v in asdict(request).items():  # type: ignore
+    d = request.to_dict()  # type: ignore
+
+    for k, v in d.items():  # type: ignore
         if k not in set_items and not isinstance(v, dict):
             setattr(request, k, UNSET)
 
@@ -169,9 +170,9 @@ def rename_columns(
 
         if root_q_num in df.columns:
             if verbose:
-                renaming_map[
-                    root_q_num
-                ] = f"{root_q_num} - {question['question_string']}"
+                renaming_map[root_q_num] = (
+                    f"{root_q_num} - {question['question_string']}"
+                )
             else:
                 renaming_map[root_q_num] = f"{root_q_num}"
 
@@ -182,9 +183,9 @@ def rename_columns(
                     continue
 
                 if verbose:
-                    renaming_map[
-                        q_num
-                    ] = f"{root_q_num} - {sub_question['question_string']}"
+                    renaming_map[q_num] = (
+                        f"{root_q_num} - {sub_question['question_string']}"
+                    )
                 else:
                     renaming_map[q_num] = f"{sub_question['question_number']}"
 
