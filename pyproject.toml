@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "qualtrics-utils"
-version = "1.0.0"
+version = "1.0.1"
 description = "Utilities for qualtrics surveys."
 authors = ["Mike Babb <mike7400@gmail.com>"]
 
@@ -17,6 +17,7 @@ sqlalchemy = "^2.0.28"
 numpy = "^1.26.4"
 googleapiutils2 = "^0.13.1"
 loguru = "^0.7.2"
+attr = "^0.3.2"
 
 [tool.poetry.group.dev.dependencies]
 openapi-python-client = "^0.15.1"
