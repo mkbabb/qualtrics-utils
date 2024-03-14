@@ -30,7 +30,7 @@ RE_HTML_TAG = re.compile(r"<(.|\s)*?>")
 
 RE_SPACE = re.compile(r"&nbsp;")
 
-RE_WHITESPACE = re.compile("\s+")
+RE_WHITESPACE = re.compile(r"\s+")
 
 
 def normalize_whitespace(s: str) -> str:
