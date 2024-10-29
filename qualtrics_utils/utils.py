@@ -169,22 +169,22 @@ def rename_columns(
 
         if root_q_num in df.columns:
             if verbose:
-                renaming_map[
-                    root_q_num
-                ] = f"{root_q_num} - {question['question_string']}"
+                renaming_map[root_q_num] = (
+                    f"{root_q_num} - {question['question_string']}"
+                )
             else:
                 renaming_map[root_q_num] = f"{root_q_num}"
 
         if sub_questions is not None and len(sub_questions) >= 1:
             for sub_question in sub_questions:
                 q_num = sub_question["question_number"]
-                if not q_num in df.columns:
+                if q_num not in df.columns:
                     continue
 
                 if verbose:
-                    renaming_map[
-                        q_num
-                    ] = f"{root_q_num} - {sub_question['question_string']}"
+                    renaming_map[q_num] = (
+                        f"{root_q_num} - {sub_question['question_string']}"
+                    )
                 else:
                     renaming_map[q_num] = f"{sub_question['question_number']}"
 
@@ -404,10 +404,10 @@ def drop_if_exists(table_name: str, conn: sqlalchemy.Connection):
         table.drop(conn)
 
 
-def delete_sheet_if_exists(sheet_name: str, spreadsheet_id: str, sheets: Sheets):
+def delete_sheet_if_exƒists(sheet_name: str, spreadsheet_id: str, sheets: Sheets):
     try:
         if sheets.has(name=sheet_name, spreadsheet_id=spreadsheet_id):
-            sheets.delete(name=sheet_name, spreadsheet_id=spreadsheet_id)
+            sheets.delete(names=sheet_name, spreadsheet_id=spreadsheet_id)
     except Exception as e:
         logger.error(f"Error deleting sheet {sheet_name} from {spreadsheet_id}: {e}")
         pass

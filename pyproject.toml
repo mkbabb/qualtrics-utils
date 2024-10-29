@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "qualtrics-utils"
-version = "1.0.4"
+version = "1.0.5"
 description = "Utilities for qualtrics surveys."
 authors = ["Mike Babb <mike7400@gmail.com>"]
 
@@ -11,21 +11,21 @@ repository = "https://github.com/mkbabb/qualtrics-utils"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-pandas = "^2.2.1"
-requests = "^2.31.0"
-sqlalchemy = "^2.0.28"
-numpy = "^1.26.4"
-googleapiutils2 = "^0.13.1"
+pandas = "^2.2.3"
+requests = "^2.32.3"
+sqlalchemy = "^2.0.36"
+numpy = "^2.1.2"
+googleapiutils2 = "^0.14"
 loguru = "^0.7.2"
-openapi-python-client = "^0.15.1"
 
 [tool.poetry.group.dev.dependencies]
-mypy = "^1.9.0"
-black = "^24.2.0"
-types-requests = "^2.31.0.20240311"
-pytest = "^8.1.1"
-pymysql = "^1.1.0"
-pandas-stubs = "^2.2.0.240218"
+openapi-python-client = "^0.15.1"
+mypy = "^1.13.0"
+black = "^24.10.0"
+types-requests = "^2.32.0.20241016"
+pytest = "^8.3.3"
+pymysql = "^1.1.1"
+pandas-stubs = "^2.2.3.241009"
 
 [[tool.mypy.overrides]]
 module = "google.*,google_auth_oauthlib.*"

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pathlib
-import tomllib
 import uuid
 from argparse import ArgumentParser
 from enum import Enum
@@ -9,6 +8,7 @@ from typing import Any, Callable
 
 import pandas as pd
 import sqlalchemy
+import tomllib
 from googleapiutils2 import Sheets, SheetsValueRange, get_oauth2_creds  # type: ignore
 from loguru import logger
 from sqlalchemy import Column, DateTime, Integer, MetaData, Table, Text, func
